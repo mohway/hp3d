@@ -6,6 +6,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
@@ -13,6 +16,40 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 // Added: Error callback to get detailed failure messages from GLFW
 void error_callback(int error, const char* description) {
     std::cerr << "GLFW Error " << error << ": " << description << std::endl;
+}
+
+unsigned int App::load_texture(const char* path) {
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrComponents;
+    // PS1 textures didn't strictly flip, but OpenGL usually expects it.
+    stbi_set_flip_vertically_on_load(true);
+
+    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    if (data) {
+        GLenum format;
+        if (nrComponents == 1) format = GL_RED;
+        else if (nrComponents == 3) format = GL_RGB;
+        else if (nrComponents == 4) format = GL_RGBA;
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        // PS1 Style: Pixelated textures (Nearest Neighbor)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+        stbi_image_free(data);
+    } else {
+        std::cout << "Texture failed to load at path: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
 }
 
 App::App(const std::string &title, int width, int height)
@@ -77,6 +114,8 @@ void App::init() {
     // m_Camera = std::make_unique_ptr<Camera>();     // TODO: Uncomment when Camera class exists
 
     m_shader_program = create_shader("../shaders/retro.vert", "../shaders/retro.frag");
+
+    m_FloorTexture = load_texture("../textures/zwin_02.png"); // Make sure to create this folder/file!
 
     float rawVertices[] = {
         // Position           // TexCoord
@@ -260,6 +299,10 @@ void App::render() {
     // --- DRAW SCENE START ---
     glUseProgram(m_shader_program);
 
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_FloorTexture); // Bind your loaded texture
+    glUniform1i(glGetUniformLocation(m_shader_program, "u_Texture"), 0);
+
     // Recalculate aspect ratio for 320x240!
     float aspectRatio = (float)INTERNAL_WIDTH / (float)INTERNAL_HEIGHT;
     glm::mat4 projection = glm::perspective(glm::radians(m_Camera.Zoom), aspectRatio, 0.1f, 100.0f);
@@ -300,6 +343,8 @@ void App::render() {
     glBindTexture(GL_TEXTURE_2D, m_TexColorBuffer); // Bind the low-res texture
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
+
+
 
 unsigned int App::create_shader(const char* vertexPath, const char* fragmentPath) {
     // 1. Retrieve the vertex/fragment source code from filePath

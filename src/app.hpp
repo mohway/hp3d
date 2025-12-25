@@ -47,6 +47,7 @@ private:
     Arena m_FrameArena;
 
     unsigned int create_shader(const char* vertex_path, const char* frag_path);
+    unsigned int load_texture(const char* path);
     unsigned int m_shader_program;
     unsigned int m_vao, m_vbo;
 
@@ -69,4 +70,6 @@ private:
     // Mouse State
     float m_LastX = 400, m_LastY = 300;
     bool m_FirstMouse = true;
+
+    unsigned int m_FloorTexture;
 };
