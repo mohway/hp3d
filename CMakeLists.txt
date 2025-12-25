@@ -41,6 +41,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb)
 
+FetchContent_Declare(
+        tinyobjloader
+        GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
+        GIT_TAG release
+)
+FetchContent_MakeAvailable(tinyobjloader)
+
 # --- 2. Source Files ---
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.c")
 
@@ -56,7 +63,7 @@ add_executable(hp3d ${SOURCES}
 # --- 4. Linking ---
 # Note: OpenGL::GL usually handles includes automatically, but keeping explicit includes is fine.
 target_include_directories(hp3d PUBLIC ${OPENGL_INCLUDE_DIR})
-target_include_directories(hp3d PUBLIC ${stb_SOURCE_DIR})
+target_include_directories(hp3d PUBLIC ${stb_SOURCE_DIR} ${tinyobjloader_SOURCE_DIR})
 target_link_libraries(hp3d PRIVATE glfw glad glm OpenGL::GL)
 
 # Copy shaders to build directory so the executable can find them

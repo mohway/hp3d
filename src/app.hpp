@@ -20,6 +20,16 @@ public:
 
     void run();
 
+    struct SubMesh {
+        unsigned int vao;
+        unsigned int vbo;
+        unsigned int textureID;
+        int vertexCount;
+    };
+
+    // A "Model" is just a list of parts
+    using Model = std::vector<SubMesh>;
+
 private:
     void init();
     void update(float dt);
@@ -72,4 +82,9 @@ private:
     bool m_FirstMouse = true;
 
     unsigned int m_FloorTexture;
+
+    Model load_model(const char* objPath);
+
+    // The loaded model
+    Model m_Model;
 };

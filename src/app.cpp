@@ -9,6 +9,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
@@ -116,6 +119,7 @@ void App::init() {
     m_shader_program = create_shader("../shaders/retro.vert", "../shaders/retro.frag");
 
     m_FloorTexture = load_texture("../textures/zwin_02.png"); // Make sure to create this folder/file!
+    m_Model = load_model("../assets/skharrymesh.obj");
 
     float rawVertices[] = {
         // Position           // TexCoord
@@ -299,17 +303,27 @@ void App::render() {
     // --- DRAW SCENE START ---
     glUseProgram(m_shader_program);
 
-    glActiveTexture(GL_TEXTURE0);
+    for (const auto& mesh : m_Model) {
+        // 1. Bind THIS part's texture
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, mesh.textureID);
+
+        // 2. Bind THIS part's geometry
+        glBindVertexArray(mesh.vao);
+
+        // 3. Draw
+        glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
+    }
+
+    /*glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_FloorTexture); // Bind your loaded texture
-    glUniform1i(glGetUniformLocation(m_shader_program, "u_Texture"), 0);
+    glUniform1i(glGetUniformLocation(m_shader_program, "u_Texture"), 0);*/
 
     // Recalculate aspect ratio for 320x240!
     float aspectRatio = (float)INTERNAL_WIDTH / (float)INTERNAL_HEIGHT;
     glm::mat4 projection = glm::perspective(glm::radians(m_Camera.Zoom), aspectRatio, 0.1f, 100.0f);
 
     glm::mat4 view = m_Camera.GetViewMatrix();
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(1.0f, 0.3f, 0.5f));
 
     unsigned int modelLoc = glGetUniformLocation(m_shader_program, "model");
     unsigned int viewLoc  = glGetUniformLocation(m_shader_program, "view");
@@ -343,8 +357,6 @@ void App::render() {
     glBindTexture(GL_TEXTURE_2D, m_TexColorBuffer); // Bind the low-res texture
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
-
-
 
 unsigned int App::create_shader(const char* vertexPath, const char* fragmentPath) {
     // 1. Retrieve the vertex/fragment source code from filePath
@@ -414,4 +426,109 @@ unsigned int App::create_shader(const char* vertexPath, const char* fragmentPath
     glDeleteShader(vertex);
     glDeleteShader(fragment);
     return ID;
+}
+
+App::Model App::load_model(const char* objPath) {
+    Model model; // The list of sub-meshes we will return
+
+    // 1. TinyObj Loader Variables
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
+
+    // Get the base directory of the OBJ so we can find textures next to it
+    std::string baseDir = objPath;
+    if (baseDir.find_last_of("/\\") != std::string::npos) {
+        baseDir = baseDir.substr(0, baseDir.find_last_of("/\\") + 1);
+    } else {
+        baseDir = "";
+    }
+
+    // 2. Load the OBJ and the MTL
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, objPath, baseDir.c_str());
+
+    if (!warn.empty()) std::cout << "OBJ Warning: " << warn << std::endl;
+    if (!err.empty()) std::cerr << "OBJ Error: " << err << std::endl;
+    if (!ret) return model;
+
+    // 3. Group Geometry by Material
+    // Map: Material Index -> List of Floats (Vertex Data)
+    // We use a map so we can blindly throw triangles into buckets
+    std::map<int, std::vector<float>> sortedGeometry;
+
+    // Loop over all shapes (objects in the file)
+    for (const auto& shape : shapes) {
+        // Loop over all faces (triangles)
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
+
+            // Get the material ID for this specific face
+            int currentMaterialId = shape.mesh.material_ids[f];
+
+            // If the mesh has no material (-1), group it into a default bucket (0)
+            if (currentMaterialId < 0) currentMaterialId = 0;
+
+            // Get the 3 vertices of this face
+            for (size_t v = 0; v < 3; v++) {
+                tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
+
+                // --- POSITIONS ---
+                sortedGeometry[currentMaterialId].push_back(attrib.vertices[3 * idx.vertex_index + 0]);
+                sortedGeometry[currentMaterialId].push_back(attrib.vertices[3 * idx.vertex_index + 1]);
+                sortedGeometry[currentMaterialId].push_back(attrib.vertices[3 * idx.vertex_index + 2]);
+
+                // --- TEXCOORDS ---
+                if (idx.texcoord_index >= 0) {
+                    sortedGeometry[currentMaterialId].push_back(attrib.texcoords[2 * idx.texcoord_index + 0]);
+                    sortedGeometry[currentMaterialId].push_back(attrib.texcoords[2 * idx.texcoord_index + 1]);
+                } else {
+                    sortedGeometry[currentMaterialId].push_back(0.0f);
+                    sortedGeometry[currentMaterialId].push_back(0.0f);
+                }
+            }
+            index_offset += 3;
+        }
+    }
+
+    // 4. Create a SubMesh for each material group
+    for (auto& [matID, data] : sortedGeometry) {
+        SubMesh subMesh = {};
+
+        // A. Load the Texture for this group
+        if (matID < materials.size() && !materials[matID].diffuse_texname.empty()) {
+            std::string texPath = baseDir + materials[matID].diffuse_texname;
+            // Check if we already loaded this texture? (Optimization for later)
+            subMesh.textureID = load_texture(texPath.c_str());
+        } else {
+            // Fallback texture if none specified in MTL
+            subMesh.textureID = m_FloorTexture;
+        }
+
+        // B. Create VAO/VBO
+        subMesh.vertexCount = data.size() / 5;
+
+        // Copy to Arena
+        float* arenaBuffer = m_LevelArena.alloc_array<float>(data.size());
+        memcpy(arenaBuffer, data.data(), data.size() * sizeof(float));
+
+        glGenVertexArrays(1, &subMesh.vao);
+        glGenBuffers(1, &subMesh.vbo);
+        glBindVertexArray(subMesh.vao);
+        glBindBuffer(GL_ARRAY_BUFFER, subMesh.vbo);
+        glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), arenaBuffer, GL_STATIC_DRAW);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+
+        glBindVertexArray(0);
+
+        // Add to our list
+        model.push_back(subMesh);
+    }
+
+    std::cout << "Loaded Model with " << model.size() << " sub-meshes." << std::endl;
+    return model;
 }

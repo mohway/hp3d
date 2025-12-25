@@ -12,7 +12,7 @@ uniform mat4 projection;
 // Controls how "chunky" the snapping is.
 // Lower numbers (e.g., 160.0) = more wobble.
 // Higher numbers (e.g., 600.0) = less wobble.
-uniform float u_SnapResolution = 300.0;
+uniform float u_SnapResolution = 500.0;
 
 void main()
 {
