@@ -1,0 +1,63 @@
+# --- Build Directories (CLion & CMake) ---
+cmake-build-debug/
+cmake-build-release/
+cmake-build-*/
+build/
+out/
+bin/
+
+# --- CMake Generated Files (If you accidentally run cmake in root) ---
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+.cmake/
+_deps/
+
+# --- Compiled Binaries & Libraries ---
+*.exe
+*.dll
+*.so
+*.dylib
+*.lib
+*.a
+*.o
+*.obj
+*.pdb
+*.ilk
+*.exp
+
+# --- IDE Settings ---
+# JetBrains (CLion)
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# VS Code (Just in case)
+.vscode/
+
+# Visual Studio (Just in case)
+.vs/
+*.user
+*.suo
+*.opensdf
+*.sdf
+
+# --- OS Generated Files ---
+# Mac
+.DS_Store
+.DS_Store?
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Temporary Files ---
+*.swp
+*.swo
+*~
+*.log

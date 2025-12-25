@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <memory>
 #include <string>
+#include <glm/glm.hpp>
 
 #include "arena.hpp"
 
@@ -32,12 +33,32 @@ private:
     // std::unique_ptr<Renderer> m_Renderer;
     // std::unique_ptr<Camera> m_Camera;
 
+    // ====== GLOBALS
+
     struct G {
         float playerX = 0.0f;
         float playerY = 0.0f;
         float playerZ = 0.0f;
     } g;
 
+    // ====== ARENAS
     Arena m_LevelArena;
     Arena m_FrameArena;
+
+    unsigned int create_shader(const char* vertex_path, const char* frag_path);
+    unsigned int m_shader_program;
+    unsigned int m_vao, m_vbo;
+
+    // FBO Stuff
+    unsigned int m_FBO;         // The Framebuffer Object
+    unsigned int m_TexColorBuffer; // The Texture we render to
+    unsigned int m_RBO;         // The Depth Buffer for the FBO
+
+    // Screen Quad Stuff
+    unsigned int m_ScreenVAO, m_ScreenVBO;
+    unsigned int m_ScreenShader; // The compiled screen.vert/frag
+
+    // Settings
+    const int INTERNAL_WIDTH = 320;
+    const int INTERNAL_HEIGHT = 240;
 };

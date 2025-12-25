@@ -12,7 +12,7 @@ uniform mat4 projection;
 // Controls how "chunky" the snapping is.
 // Lower numbers (e.g., 160.0) = more wobble.
 // Higher numbers (e.g., 600.0) = less wobble.
-uniform float u_SnapResolution = 240.0;
+uniform float u_SnapResolution = 300.0;
 
 void main()
 {
@@ -22,7 +22,6 @@ void main()
     // 2. Convert to Screen Space explicitly
     vec3 screenPos = clipPos.xyz / clipPos.w;
 
-    // 3. SNAP! Round to the nearest grid cell
     screenPos.xy = floor(screenPos.xy * u_SnapResolution) / u_SnapResolution;
 
     // 4. Convert back to Clip Space
