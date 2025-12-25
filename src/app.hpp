@@ -60,6 +60,7 @@ private:
     unsigned int load_texture(const char* path);
     unsigned int m_shader_program;
     unsigned int m_vao, m_vbo;
+    int m_FloorVertexCount;
 
     // FBO Stuff
     unsigned int m_FBO;         // The Framebuffer Object

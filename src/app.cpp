@@ -119,37 +119,91 @@ void App::init() {
     m_shader_program = create_shader("../shaders/retro.vert", "../shaders/retro.frag");
 
     m_FloorTexture = load_texture("../textures/zwin_02.png"); // Make sure to create this folder/file!
+    // m_Model = load_model("../assets/levels/01/Adv1Willow.obj");
+
     m_Model = load_model("../assets/skharrymesh.obj");
 
-    float rawVertices[] = {
-        // Position           // TexCoord
-        -5.0f, 0.0f, -5.0f,   0.0f, 0.0f,
-         5.0f, 0.0f, -5.0f,   1.0f, 0.0f,
-         5.0f, 0.0f,  5.0f,   1.0f, 1.0f,
-        -5.0f, 0.0f, -5.0f,   0.0f, 0.0f,
-         5.0f, 0.0f,  5.0f,   1.0f, 1.0f,
-        -5.0f, 0.0f,  5.0f,   0.0f, 1.0f
-    };
+    float size = 50.0f;
+    int gridX = 10;
+    int gridZ = 10;
+    float stepX = (size * 2) / gridX;
+    float stepZ = (size * 2) / gridZ;
+    float uvScale = 1.0f;
 
-    float* arenaVertices = m_LevelArena.alloc_array<float>(15);
-    memcpy(arenaVertices, rawVertices, sizeof(rawVertices));
+    // We need 6 vertices per square * gridX * gridZ * 5 floats per vert
+    int floatCount = gridX * gridZ * 6 * 8;
+    float* arenaVertices = m_LevelArena.alloc_array<float>(floatCount);
+    int idx = 0;
+
+    for (int z = 0; z < gridZ; ++z) {
+        for (int x = 0; x < gridX; ++x) {
+            // Calculate corners
+            float x0 = -size + (x * stepX);
+            float z0 = -size + (z * stepZ);
+            float x1 = x0 + stepX;
+            float z1 = z0 + stepZ;
+
+            // Calculate UVs (0..10 range)
+            float u0 = (float)x / gridX * uvScale;
+            float v0 = (float)z / gridZ * uvScale;
+            float u1 = (float)(x + 1) / gridX * uvScale;
+            float v1 = (float)(z + 1) / gridZ * uvScale;
+
+            // Triangle 1
+            // P1 (x0, z0)
+            arenaVertices[idx++] = x0; arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = z0; // Pos
+            arenaVertices[idx++] = u0; arenaVertices[idx++] = v0; // Tex
+            arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = 1.0f; arenaVertices[idx++] = 0.0f; // Normal (UP)
+
+            // P2
+            arenaVertices[idx++] = x1; arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = z0;
+            arenaVertices[idx++] = u1; arenaVertices[idx++] = v0;
+            arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = 1.0f; arenaVertices[idx++] = 0.0f; // Normal
+
+            // P3
+            arenaVertices[idx++] = x1; arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = z1;
+            arenaVertices[idx++] = u1; arenaVertices[idx++] = v1;
+            arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = 1.0f; arenaVertices[idx++] = 0.0f; // Normal
+
+            // Triangle 2
+            // P1
+            arenaVertices[idx++] = x0; arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = z0;
+            arenaVertices[idx++] = u0; arenaVertices[idx++] = v0;
+            arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = 1.0f; arenaVertices[idx++] = 0.0f; // Normal
+
+            // P2
+            arenaVertices[idx++] = x1; arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = z1;
+            arenaVertices[idx++] = u1; arenaVertices[idx++] = v1;
+            arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = 1.0f; arenaVertices[idx++] = 0.0f; // Normal
+
+            // P3
+            arenaVertices[idx++] = x0; arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = z1;
+            arenaVertices[idx++] = u0; arenaVertices[idx++] = v1;
+            arenaVertices[idx++] = 0.0f; arenaVertices[idx++] = 1.0f; arenaVertices[idx++] = 0.0f; // Normal
+        }
+    }
+    // Store vertex count for draw call (gridX * gridZ * 6 vertices)
+    m_FloorVertexCount = gridX * gridZ * 6; // Add this member to App class!
 
     glGenVertexArrays(1, &m_vao);
     glGenBuffers(1, &m_vbo);
-
     glBindVertexArray(m_vao);
-
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(rawVertices), arenaVertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, floatCount * sizeof(float), arenaVertices, GL_STATIC_DRAW);
 
-    // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    int stride = 8 * sizeof(float);
+
     glEnableVertexAttribArray(0);
-    // TexCoord attribute
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
 
-    // Unbind
+    // 2. TexCoord (Location 1) - Offset is 3 floats
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+
+    // 3. Normal (Location 2) - Offset is 5 floats (3 Pos + 2 Tex)
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(5 * sizeof(float)));
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -293,68 +347,95 @@ void App::render() {
     // PASS 1: Render the GAME to the tiny FBO (320x240)
     // =========================================================
     glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
-    glViewport(0, 0, INTERNAL_WIDTH, INTERNAL_HEIGHT); // Resize viewport to 320x240
-
-    // Clear the FBO
+    glViewport(0, 0, INTERNAL_WIDTH, INTERNAL_HEIGHT);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST); // Enable depth testing for the 3D scene
+    glEnable(GL_DEPTH_TEST);
 
-    // --- DRAW SCENE START ---
     glUseProgram(m_shader_program);
 
-    for (const auto& mesh : m_Model) {
-        // 1. Bind THIS part's texture
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, mesh.textureID);
+    unsigned int lightPosLoc   = glGetUniformLocation(m_shader_program, "u_LightPos");
+    unsigned int lightColorLoc = glGetUniformLocation(m_shader_program, "u_LightColor");
+    unsigned int rangeLoc      = glGetUniformLocation(m_shader_program, "u_LightRange");
+    unsigned int ambientLoc    = glGetUniformLocation(m_shader_program, "u_AmbientColor");
 
-        // 2. Bind THIS part's geometry
-        glBindVertexArray(mesh.vao);
+    // Make a light orbit the scene
+    float time = (float)glfwGetTime();
+    float lightX = sin(time) * 20.0f;
+    float lightZ = cos(time) * 20.0f;
 
-        // 3. Draw
-        glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
-    }
+    glUniform3f(lightPosLoc, lightX, 10.0f, lightZ); // Light at height 10
+    glUniform3f(lightColorLoc, 1.0f, 0.8f, 0.6f);    // Warm torch color
+    glUniform1f(rangeLoc, 50.0f);                    // 50 unit radius
+    glUniform3f(ambientLoc, 0.2f, 0.2f, 0.3f);       // Dark blue ambient
 
-    /*glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_FloorTexture); // Bind your loaded texture
-    glUniform1i(glGetUniformLocation(m_shader_program, "u_Texture"), 0);*/
-
-    // Recalculate aspect ratio for 320x240!
+    // --- GLOBAL UNIFORMS (View/Projection apply to everything) ---
     float aspectRatio = (float)INTERNAL_WIDTH / (float)INTERNAL_HEIGHT;
-    glm::mat4 projection = glm::perspective(glm::radians(m_Camera.Zoom), aspectRatio, 0.1f, 100.0f);
-
+    glm::mat4 projection = glm::perspective(glm::radians(m_Camera.Zoom), aspectRatio, 0.1f, 1000.0f);
     glm::mat4 view = m_Camera.GetViewMatrix();
 
     unsigned int modelLoc = glGetUniformLocation(m_shader_program, "model");
     unsigned int viewLoc  = glGetUniformLocation(m_shader_program, "view");
     unsigned int projLoc  = glGetUniformLocation(m_shader_program, "projection");
     unsigned int snapLoc  = glGetUniformLocation(m_shader_program, "u_SnapResolution");
+    unsigned int texLoc   = glGetUniformLocation(m_shader_program, "u_Texture");
 
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniform2f(snapLoc, INTERNAL_WIDTH / 1.0f, (float)INTERNAL_HEIGHT / 1.0f);
 
-    // IMPORTANT: Snap resolution should match the internal resolution height roughly
-    glUniform1f(snapLoc, (float)INTERNAL_HEIGHT);
+    // =========================================================
+    // PART 1: DRAW THE FLOOR (Static)
+    // =========================================================
+    // 1. Reset Model Matrix to Identity (No rotation, scale 1.0)
+    glm::mat4 floorModel = glm::mat4(1.0f);
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(floorModel));
 
+    // 2. Bind Floor Texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_FloorTexture);
+    glUniform1i(texLoc, 0);
+
+    // 3. Draw Floor VAO
     glBindVertexArray(m_vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    // --- DRAW SCENE END ---
+    glDrawArrays(GL_TRIANGLES, 0, m_FloorVertexCount);
+
+    // =========================================================
+    // PART 2: DRAW THE CHARACTER (Rotating)
+    // =========================================================
+    // 1. Calculate Character Transform
+    glm::mat4 charModel = glm::mat4(1.0f);
+    charModel = glm::translate(charModel, glm::vec3(0.0f, 0.0f, 0.0f)); // Optional: Adjust height
+    charModel = glm::scale(charModel, glm::vec3(0.1f));                 // Scale down 10x
+   //charModel = glm::rotate(charModel, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f)); // Spin
+
+    // 2. Update Uniform (Crucial Step: This overrides the floor's matrix)
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(charModel));
+
+    // 3. Draw Character Submeshes
+    for (const auto& mesh : m_Model) {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, mesh.textureID);
+        glUniform1i(texLoc, 0);
+
+        glBindVertexArray(mesh.vao);
+        glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
+    }
 
     // =========================================================
     // PASS 2: Render the FBO Texture to the Screen (Upscale)
     // =========================================================
-    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Bind back to default window
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     int displayW, displayH;
     glfwGetFramebufferSize(m_Window, &displayW, &displayH);
     glViewport(0, 0, displayW, displayH);
 
-    glClear(GL_COLOR_BUFFER_BIT); // We don't need depth here, just color
-    glDisable(GL_DEPTH_TEST); // Disable depth test so the quad draws over everything
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
 
     glUseProgram(m_ScreenShader);
     glBindVertexArray(m_ScreenVAO);
-    glBindTexture(GL_TEXTURE_2D, m_TexColorBuffer); // Bind the low-res texture
+    glBindTexture(GL_TEXTURE_2D, m_TexColorBuffer);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
@@ -486,6 +567,17 @@ App::Model App::load_model(const char* objPath) {
                     sortedGeometry[currentMaterialId].push_back(0.0f);
                     sortedGeometry[currentMaterialId].push_back(0.0f);
                 }
+
+                if (idx.normal_index >= 0) {
+                    sortedGeometry[currentMaterialId].push_back(attrib.normals[3 * idx.normal_index + 0]);
+                    sortedGeometry[currentMaterialId].push_back(attrib.normals[3 * idx.normal_index + 1]);
+                    sortedGeometry[currentMaterialId].push_back(attrib.normals[3 * idx.normal_index + 2]);
+                } else {
+                    // Fallback if OBJ has no normals (Up vector)
+                    sortedGeometry[currentMaterialId].push_back(0.0f);
+                    sortedGeometry[currentMaterialId].push_back(1.0f);
+                    sortedGeometry[currentMaterialId].push_back(0.0f);
+                }
             }
             index_offset += 3;
         }
@@ -518,10 +610,18 @@ App::Model App::load_model(const char* objPath) {
         glBindBuffer(GL_ARRAY_BUFFER, subMesh.vbo);
         glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), arenaBuffer, GL_STATIC_DRAW);
 
+        int stride = 8 * sizeof(float);
+
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+
+        // 2. Tex (Location 1) - Offset 3 floats
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+
+        // 3. Normals (Location 2) - Offset 5 floats
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(5 * sizeof(float)));
 
         glBindVertexArray(0);
 
