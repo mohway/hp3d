@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 
 #include "arena.hpp"
+#include "camera.hpp"
 
 // class Renderer;
 // class Camera;
@@ -61,4 +62,11 @@ private:
     // Settings
     const int INTERNAL_WIDTH = 320;
     const int INTERNAL_HEIGHT = 240;
+
+    // Camera System
+    Camera m_Camera;
+
+    // Mouse State
+    float m_LastX = 400, m_LastY = 300;
+    bool m_FirstMouse = true;
 };

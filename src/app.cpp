@@ -16,7 +16,7 @@ void error_callback(int error, const char* description) {
 }
 
 App::App(const std::string &title, int width, int height)
-    :m_Window(nullptr), m_Width(width), m_Height(height), m_IsRunning(false){
+    :m_Window(nullptr), m_Width(width), m_Height(height), m_IsRunning(false), m_Camera(glm::vec3(0.0f, 1.0f, 3.0f)) {
 
     g = { 0.0f, 0.0f, 0.0f };
 
@@ -54,6 +54,7 @@ void App::init() {
         return;
     }
     glfwMakeContextCurrent(m_Window);
+    glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetFramebufferSizeCallback(m_Window, framebuffer_size_callback);
 
     // --- 2. Initialize GLAD ---
@@ -78,9 +79,13 @@ void App::init() {
     m_shader_program = create_shader("../shaders/retro.vert", "../shaders/retro.frag");
 
     float rawVertices[] = {
-        -0.5f, -0.5f, 0.0f,  0.0f, 0.0f,
-         0.5f, -0.5f, 0.0f,  1.0f, 0.0f,
-         0.0f,  0.5f, 0.0f,  0.5f, 1.0f
+        // Position           // TexCoord
+        -5.0f, 0.0f, -5.0f,   0.0f, 0.0f,
+         5.0f, 0.0f, -5.0f,   1.0f, 0.0f,
+         5.0f, 0.0f,  5.0f,   1.0f, 1.0f,
+        -5.0f, 0.0f, -5.0f,   0.0f, 0.0f,
+         5.0f, 0.0f,  5.0f,   1.0f, 1.0f,
+        -5.0f, 0.0f,  5.0f,   0.0f, 1.0f
     };
 
     float* arenaVertices = m_LevelArena.alloc_array<float>(15);
@@ -193,9 +198,46 @@ void App::process_input(float dt) {
     if (glfwGetKey(m_Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(m_Window, true);
 
-    // Example: Move player state
-    // if (glfwGetKey(m_Window, GLFW_KEY_W) == GLFW_PRESS)
-    //    m_State.playerZ -= 5.0f * dt;
+    static bool tabPressed = false;
+    if (glfwGetKey(m_Window, GLFW_KEY_TAB) == GLFW_PRESS && !tabPressed) {
+        tabPressed = true;
+        int mode = glfwGetInputMode(m_Window, GLFW_CURSOR);
+        glfwSetInputMode(m_Window, GLFW_CURSOR,
+            (mode == GLFW_CURSOR_DISABLED) ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+    }
+    if (glfwGetKey(m_Window, GLFW_KEY_TAB) == GLFW_RELEASE) {
+        tabPressed = false;
+    }
+
+    // Camera WASD
+    if (glfwGetKey(m_Window, GLFW_KEY_W) == GLFW_PRESS)
+        m_Camera.ProcessKeyboard(0, dt);
+    if (glfwGetKey(m_Window, GLFW_KEY_S) == GLFW_PRESS)
+        m_Camera.ProcessKeyboard(1, dt);
+    if (glfwGetKey(m_Window, GLFW_KEY_A) == GLFW_PRESS)
+        m_Camera.ProcessKeyboard(2, dt);
+    if (glfwGetKey(m_Window, GLFW_KEY_D) == GLFW_PRESS)
+        m_Camera.ProcessKeyboard(3, dt);
+
+    if (glfwGetInputMode(m_Window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED) {
+        double xpos, ypos;
+        glfwGetCursorPos(m_Window, &xpos, &ypos);
+
+        if (m_FirstMouse) {
+            m_LastX = xpos;
+            m_LastY = ypos;
+            m_FirstMouse = false;
+        }
+
+        float xoffset = xpos - m_LastX;
+        float yoffset = m_LastY - ypos; // Reversed: y-coords range from bottom to top
+
+        m_LastX = xpos;
+        m_LastY = ypos;
+
+        // Pass to Camera (ensure you have m_Camera implemented)
+        m_Camera.ProcessMouseMovement(xoffset, yoffset);
+    }
 }
 
 void App::update(float dt) {
@@ -220,9 +262,9 @@ void App::render() {
 
     // Recalculate aspect ratio for 320x240!
     float aspectRatio = (float)INTERNAL_WIDTH / (float)INTERNAL_HEIGHT;
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 100.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(m_Camera.Zoom), aspectRatio, 0.1f, 100.0f);
 
-    glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -3.0f));
+    glm::mat4 view = m_Camera.GetViewMatrix();
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(1.0f, 0.3f, 0.5f));
 
@@ -239,7 +281,7 @@ void App::render() {
     glUniform1f(snapLoc, (float)INTERNAL_HEIGHT);
 
     glBindVertexArray(m_vao);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
     // --- DRAW SCENE END ---
 
     // =========================================================
