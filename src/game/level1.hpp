@@ -4,6 +4,8 @@
 #include <iostream>
 #include <cmath> // For sin/cos
 
+#include "../engine/player_controller.hpp"
+
 class Level1 : public Scene {
 public:
     void Init() override {
@@ -18,7 +20,6 @@ public:
 
         // Load Harry
         ResourceManager::LoadModel("../assets/skharrymesh.obj", "harry");
-        ResourceManager::LoadTexture("../assets/skharryTex0.png", "harry_tex"); // Assuming texture name
 
         // Load Floor Texture
         unsigned int floorTex = ResourceManager::LoadTexture("../textures/zwin_02.png", "zwin_floor");
@@ -35,17 +36,22 @@ public:
         floorObj->transform.Position = glm::vec3(0.0f, 0.0f, 0.0f);
 
         // --- Harry Potter ---
-        auto* harry = CreateObject<MeshObject>();
-        harry->modelResource = &ResourceManager::GetModel("harry");
-        harry->transform.Position = glm::vec3(0.0f, 0.0f, 0.0f);
-        harry->transform.Scale = glm::vec3(0.1f); // Adjust scale as needed
-        harry->transform.Rotation = glm::vec3(0.0f, 0.0f, 0.0f); // OBJ often needs -90 X rot
+        m_Harry = CreateObject<MeshObject>();
+        m_Harry->modelResource = &ResourceManager::GetModel("harry");
+        m_Harry->transform.Position = glm::vec3(0.0f, 0.0f, 0.0f);
+        m_Harry->transform.Scale = glm::vec3(0.1f); // Adjust scale as needed
+        m_Harry->transform.Rotation = glm::vec3(0.0f, 90.0f, 0.0f);
 
         // --- Orbiting Light ---
         m_Light = CreateObject<PointLight>();
         m_Light->transform.Position = glm::vec3(0.0f, 10.0f, 0.0f);
         m_Light->Color = glm::vec3(1.0f, 0.9f, 0.8f); // Warm sunlight
         m_Light->Intensity = 1.2f;
+
+        m_Controller = m_SceneArena.alloc<PlayerController>();
+        new(m_Controller) PlayerController(m_Harry, &m_Camera);
+
+        m_Camera.Pitch = -20.0f;
 
         // --- A Test Wall (Plane) ---
         // Just to prove the PlaneObject works (e.g., a billboard or simple wall)
@@ -65,12 +71,9 @@ public:
             m_Light->transform.Position.z = cos(time) * 15.0f;
         }
 
-        // Example: Make Harry spin slowly
-        // for (auto* obj : m_Objects) {
-        //     if (obj->type == ObjectType::Mesh) {
-        //         obj->transform.Rotation.y += 10.0f * dt;
-        //     }
-        // }
+        glm::vec3 targetPos = m_Harry->transform.Position + glm::vec3(0.0f, 7.5f, 0.0f);
+        float distance = 25.0f;
+        m_Camera.Position = targetPos - (m_Camera.Front * distance);
     }
 
     void ProcessInput(GLFWwindow* window, float dt) override {
@@ -88,21 +91,34 @@ public:
             tabPressed = false;
         }
 
-        // Camera WASD
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-            m_Camera.ProcessKeyboard(0, dt);
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-            m_Camera.ProcessKeyboard(1, dt);
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-            m_Camera.ProcessKeyboard(2, dt);
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-            m_Camera.ProcessKeyboard(3, dt);
+        if (m_Controller)
+            m_Controller->Update(window, dt);
 
+        // 2. Mouse Look (Rotates Camera)
+        // We handle this here because we need the raw mouse data
+        if (glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED) {
+            double xpos, ypos;
+            glfwGetCursorPos(window, &xpos, &ypos);
 
+            if (m_FirstMouse) {
+                m_LastX = xpos; m_LastY = ypos; m_FirstMouse = false;
+            }
+
+            float xoffset = xpos - m_LastX;
+            float yoffset = m_LastY - ypos;
+            m_LastX = xpos; m_LastY = ypos;
+
+            m_Camera.ProcessMouseMovement(xoffset, yoffset);
+        }
     }
 
 private:
     PointLight* m_Light = nullptr; // Keep a handle to the light to animate it
+    MeshObject* m_Harry = nullptr;
+    PlayerController* m_Controller = nullptr;
+
+    bool m_FirstMouse = true;
+    double m_LastX = 400, m_LastY = 300;
 
     void GenerateFloor(unsigned int textureID) {
         float size = 50.0f;
@@ -110,7 +126,7 @@ private:
         int gridZ = 10;
         float stepX = (size * 2) / gridX;
         float stepZ = (size * 2) / gridZ;
-        float uvScale = 5.0f; // Tile the texture 5 times
+        float uvScale = 1.0f; // Tile the texture 5 times
 
         int floatCount = gridX * gridZ * 6 * 8; // 6 verts * 8 floats per vert
 

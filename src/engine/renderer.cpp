@@ -230,7 +230,6 @@ void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, c
                break;
            }
            default: {
-               std::cout << "Renderer: tried to render something besides a plane or a mesh!" << std::endl;
                break;
            };
        }
@@ -240,7 +239,7 @@ void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, c
 void Renderer::RenderComposite(int screenHeight, int screenWidth) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // Back to screen
     glViewport(0, 0, screenWidth, screenHeight);
-    
+
     glClear(GL_COLOR_BUFFER_BIT);
 
     glDisable(GL_DEPTH_TEST); 

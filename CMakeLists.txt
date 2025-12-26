@@ -70,7 +70,9 @@ add_executable(hp3d ${SOURCES}
         src/engine/scene.cpp
         src/engine/scene.hpp
         src/game/level1.cpp
-        src/game/level1.hpp)
+        src/game/level1.hpp
+        src/engine/player_controller.cpp
+        src/engine/player_controller.hpp)
 
 # --- 4. Linking ---
 # Note: OpenGL::GL usually handles includes automatically, but keeping explicit includes is fine.
