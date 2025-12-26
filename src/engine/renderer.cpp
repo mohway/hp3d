@@ -9,6 +9,26 @@ Renderer::~Renderer() {}
 void Renderer::Init() {
     InitFramebuffers();
     InitScreenQuad();
+
+    float planeVertices[] = {
+        // Pos           // Normal       // Tex
+        -0.5f, 0.5f, 0.0f,  0.0f, 0.0f, 1.0f,  0.0f, 1.0f,
+        -0.5f,-0.5f, 0.0f,  0.0f, 0.0f, 1.0f,  0.0f, 0.0f,
+         0.5f,-0.5f, 0.0f,  0.0f, 0.0f, 1.0f,  1.0f, 0.0f,
+
+        -0.5f, 0.5f, 0.0f,  0.0f, 0.0f, 1.0f,  0.0f, 1.0f,
+         0.5f,-0.5f, 0.0f,  0.0f, 0.0f, 1.0f,  1.0f, 0.0f,
+         0.5f, 0.5f, 0.0f,  0.0f, 0.0f, 1.0f,  1.0f, 1.0f
+    };
+    glGenVertexArrays(1, &m_QuadVAO);
+    glGenBuffers(1, &m_QuadVBO);
+    glBindVertexArray(m_QuadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_QuadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(planeVertices), planeVertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0); glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1); glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float))); // Tex is last 2
+    glEnableVertexAttribArray(2); glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float))); // Norm is middle 3
 }
 
 void Renderer::Shutdown() {
@@ -87,10 +107,16 @@ void Renderer::InitScreenQuad() {
 // RENDER LOOP
 // =========================================================================
 
-void Renderer::DrawFrame(const Camera& camera, const Model& characterModel, unsigned int floorVAO, int floorCount) {
-    // 1. Calculate Common Logic (Light Pos)
-    float time = (float)glfwGetTime();
-    glm::vec3 lightPos = glm::vec3(sin(time) * 10.0f, 5.0f, cos(time) * 10.0f);
+void Renderer::RenderScene(const Camera& camera, const std::vector<GameObject*>& objects, int screenWidth, int screenHeight) {
+    glm::vec3 lightPos(0, 10, 0);
+
+    for (const auto* obj : objects) {
+        if (obj->type == ObjectType::Light) {
+            lightPos = obj->transform.Position;
+
+            break; //just the first light for now TODO
+        }
+    }
 
     // 2. Calculate Matrices
     float orthoSize = 15.0f;
@@ -99,40 +125,42 @@ void Renderer::DrawFrame(const Camera& camera, const Model& characterModel, unsi
     glm::mat4 lightSpaceMatrix = lightProjection * lightView;
 
     // 3. Execute Passes
-    RenderShadowMap(lightSpaceMatrix, characterModel, floorVAO, floorCount);
-    RenderGeometry(camera, lightPos, lightSpaceMatrix, characterModel, floorVAO, floorCount);
-    RenderComposite();
+    RenderShadowMap(lightSpaceMatrix, objects);
+    RenderGeometry(camera, lightPos, lightSpaceMatrix, objects);
+    RenderComposite(screenHeight, screenWidth);
 }
 // NOTE: Fixed overload signature here
-void Renderer::RenderShadowMap(const glm::mat4& lightSpaceMatrix, const Model& character, unsigned int floorVAO, int floorCount) {
+void Renderer::RenderShadowMap(const glm::mat4& lightSpaceMatrix, const std::vector<GameObject*>& objects) {
     glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
     glBindFramebuffer(GL_FRAMEBUFFER, m_ShadowMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
 
-    unsigned int shadowShader = ResourceManager::GetShader("shadow");
-    glUseProgram(shadowShader);
-    glUniformMatrix4fv(glGetUniformLocation(shadowShader, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
-    // Floor
-    glm::mat4 model = glm::mat4(1.0f);
-    glUniformMatrix4fv(glGetUniformLocation(shadowShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-    glBindVertexArray(floorVAO);
-    glDrawArrays(GL_TRIANGLES, 0, floorCount);
+    for (const auto& obj : objects) {
+        if (!obj->visible || obj->type == ObjectType::Light) continue;
 
-    // Character
-    model = glm::mat4(1.0f);
-    model = glm::scale(model, glm::vec3(0.1f));
-    glUniformMatrix4fv(glGetUniformLocation(shadowShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        unsigned int shadowShader = ResourceManager::GetShader("shadow");
+        glUniformMatrix4fv(glGetUniformLocation(shadowShader, "model"), 1, GL_FALSE, glm::value_ptr(obj->transform.GetMatrix()));
 
-    for (const auto& mesh : character) {
-        DrawMesh(mesh, shadowShader);
+        if (obj->type == ObjectType::Mesh) {
+            auto* mesh_object = dynamic_cast<MeshObject*>(obj);
+
+            if (mesh_object->modelResource) {
+                for (const auto& submesh : *mesh_object->modelResource) {
+                    DrawMesh(submesh, shadowShader);
+                }
+            }
+        } else if (obj->type == ObjectType::Plane) {
+            glBindVertexArray(m_QuadVAO);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, const glm::mat4& lightSpaceMatrix, const Model& character, unsigned int floorVAO, int floorCount) {
+void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, const glm::mat4& lightSpaceMatrix, const std::vector<GameObject*>& objects) {
     glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
     glViewport(0, 0, INTERNAL_WIDTH, INTERNAL_HEIGHT);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -161,50 +189,50 @@ void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, c
     glBindTexture(GL_TEXTURE_2D, m_ShadowMapTexture);
     glUniform1i(glGetUniformLocation(program, "u_ShadowMap"), 1);
 
-    // Draw Floor
-    glm::mat4 model = glm::mat4(1.0f);
-    glUniformMatrix4fv(glGetUniformLocation(program, "model"), 1, GL_FALSE, glm::value_ptr(model));
-    
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, ResourceManager::GetTexture("zwin_floor"));
-    glUniform1i(glGetUniformLocation(program, "u_Texture"), 0);
-    
-    glBindVertexArray(floorVAO);
-    glDrawArrays(GL_TRIANGLES, 0, floorCount);
+   for (auto* obj : objects) {
+       if (!obj->visible) continue;
 
-    // Draw Character
-    model = glm::mat4(1.0f);
-    model = glm::scale(model, glm::vec3(0.1f));
-    glUniformMatrix4fv(glGetUniformLocation(program, "model"), 1, GL_FALSE, glm::value_ptr(model));
+       glUniformMatrix4fv(glGetUniformLocation(program, "model"), 1, GL_FALSE, glm::value_ptr(obj->transform.GetMatrix()));
 
-    for (const auto& mesh : character) {
-        // Only bind texture if looking for "u_Texture". 
-        // We assume standard shader setup here.
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, mesh.textureID);
-        glUniform1i(glGetUniformLocation(program, "u_Texture"), 0);
-        DrawMesh(mesh, program);
-    }
+       switch (obj->type) {
+           case ObjectType::Mesh: {
+               auto* mesh_object = dynamic_cast<MeshObject*>(obj);
+
+               if (mesh_object->modelResource) {
+                   for (const auto& submesh : *mesh_object->modelResource) {
+                       glActiveTexture(GL_TEXTURE0);
+                       glBindTexture(GL_TEXTURE_2D, submesh.textureID);
+                       glUniform1i(glGetUniformLocation(program, "u_Texture"), 0);
+                       DrawMesh(submesh, program);
+                   }
+               }
+
+               break;
+           }
+           case ObjectType::Plane: {
+               auto* plane_object = dynamic_cast<PlaneObject*>(obj);
+               glActiveTexture(GL_TEXTURE0);
+               glBindTexture(GL_TEXTURE_2D, plane_object->textureID);
+               glUniform1i(glGetUniformLocation(program, "u_Texture"), 0);
+
+               glBindVertexArray(m_QuadVAO);
+               glDrawArrays(GL_TRIANGLES, 0, 6);
+               glBindVertexArray(0);
+
+               break;
+           }
+           default: {
+               std::cout << "Renderer: tried to render something besides a plane or a mesh!" << std::endl;
+               break;
+           };
+       }
+   }
 }
 
-void Renderer::RenderComposite() {
+void Renderer::RenderComposite(int screenHeight, int screenWidth) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // Back to screen
-    // We can't easily get window size here without passing window, 
-    // but usually, we want to render to the full current viewport 
-    // or pass the window size in Init/DrawFrame. 
-    // For now, we assume the GL viewport is already set correctly by GLFW resize callback 
-    // or we query it. simpler: just clear and draw.
-    
-    // Note: In a robust engine, you pass window width/height to this function.
-    // For now, we rely on the state being acceptable or cleared.
-    // Actually, let's just clear. The viewport should be set by the window resize callback.
-    // However, since we messed with viewport in Shadow/Geo pass, we MUST restore it.
-    // We'll read from GL_VIEWPORT just to be safe, or assume standard.
-    
-    // Better approach: Pass display size to DrawFrame
-    int dims[4];
-    glGetIntegerv(GL_VIEWPORT, dims); 
-    glViewport(0, 0, dims[2], dims[3]); 
+
+    glViewport(0, 0, screenWidth, screenHeight);
 
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST); 

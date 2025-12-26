@@ -11,6 +11,7 @@
 #include "camera.hpp"
 #include "engine/resource_manager.hpp"
 #include "engine/renderer.hpp"
+#include "engine/scene.hpp"
 
 // class Renderer;
 // class Camera;
@@ -30,7 +31,7 @@ private:
 
     std::unique_ptr<Window> m_Window;
     Renderer m_Renderer;
-    Camera m_Camera;
+    std::unique_ptr<Scene> m_CurrentScene;
     bool m_IsRunning;
 
     // ====== GLOBALS
@@ -41,8 +42,6 @@ private:
         float playerZ = 0.0f;
     } g;
 
-    // ====== ARENAS
-    Arena m_LevelArena;
     Arena m_FrameArena;
 
     ShaderProgram shader_program;

@@ -5,6 +5,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 
+#include "game_object.hpp"
 #include "resource_manager.hpp"
 #include "../camera.hpp"
 
@@ -16,36 +17,35 @@ public:
     void Init();
     void Shutdown();
 
-    // Main draw function called by App
-    void DrawFrame(const Camera& camera,
-                   const Model& characterModel,
-                   unsigned int floorVAO,
-                   int floorVertexCount);
+    void RenderScene(const Camera& camera,
+                     const std::vector<GameObject*>& objects,
+                     int screenWidth,
+                     int screenHeight);
 
 private:
     // --- Initialization Helpers ---
     void InitFramebuffers();
     void InitScreenQuad();
 
+    void DrawQuad();
+
     // --- Render Passes ---
     void RenderShadowMap(const glm::mat4& lightSpaceMatrix,
-                         const Model& character,
-                         unsigned int floorVAO,
-                         int floorCount);
+                         const std::vector<GameObject*>& objects);
 
     void RenderGeometry(const Camera& camera,
                         const glm::vec3& lightPos,
                         const glm::mat4& lightSpaceMatrix,
-                        const Model& character,
-                        unsigned int floorVAO,
-                        int floorCount);
+                        const std::vector<GameObject*>& objects);
 
-    void RenderComposite(); // Upscale to screen
+    unsigned int m_QuadVAO = 0;
+    unsigned int m_QuadVBO = 0;
+
+    void RenderComposite(int screenHeight, int screenWidth); // Upscale to screen
 
     // --- Helpers ---
     void DrawMesh(const SubMesh& mesh, unsigned int shaderID);
 
-private:
     // Settings
     const int INTERNAL_WIDTH = 320;
     const int INTERNAL_HEIGHT = 240;
