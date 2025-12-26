@@ -134,13 +134,17 @@ void Renderer::RenderShadowMap(const glm::mat4& lightSpaceMatrix, const std::vec
     glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
     glBindFramebuffer(GL_FRAMEBUFFER, m_ShadowMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
 
+    glEnable(GL_DEPTH_TEST);
+    glCullFace(GL_FRONT);
+
+    unsigned int shadowShader = ResourceManager::GetShader("shadow");
+    glUseProgram(shadowShader);
+    glUniformMatrix4fv(glGetUniformLocation(shadowShader, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
     for (const auto& obj : objects) {
         if (!obj->visible || obj->type == ObjectType::Light) continue;
 
-        unsigned int shadowShader = ResourceManager::GetShader("shadow");
         glUniformMatrix4fv(glGetUniformLocation(shadowShader, "model"), 1, GL_FALSE, glm::value_ptr(obj->transform.GetMatrix()));
 
         if (obj->type == ObjectType::Mesh) {
@@ -157,14 +161,18 @@ void Renderer::RenderShadowMap(const glm::mat4& lightSpaceMatrix, const std::vec
         }
     }
 
+    glCullFace(GL_BACK);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, const glm::mat4& lightSpaceMatrix, const std::vector<GameObject*>& objects) {
     glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
     glViewport(0, 0, INTERNAL_WIDTH, INTERNAL_HEIGHT);
+
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glEnable(GL_DEPTH_TEST);
 
     unsigned int program = ResourceManager::GetShader("retro");
     glUseProgram(program);
@@ -231,13 +239,16 @@ void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, c
 
 void Renderer::RenderComposite(int screenHeight, int screenWidth) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // Back to screen
-
     glViewport(0, 0, screenWidth, screenHeight);
-
+    
     glClear(GL_COLOR_BUFFER_BIT);
+
     glDisable(GL_DEPTH_TEST); 
 
-    glUseProgram(ResourceManager::GetShader("screen"));
+    unsigned int screenShader = ResourceManager::GetShader("screen");
+    if(screenShader == 0) std::cout << "ERROR: Screen shader not found!" << std::endl;
+    glUseProgram(screenShader);
+
     glBindVertexArray(m_ScreenVAO);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_TexColorBuffer);

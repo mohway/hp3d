@@ -14,6 +14,7 @@ public:
         // 2. Load Global Resources
         ResourceManager::LoadShader("../shaders/retro.vert", "../shaders/retro.frag", "retro");
         ResourceManager::LoadShader("../shaders/shadow.vert", "../shaders/shadow.frag", "shadow");
+        ResourceManager::LoadShader("../shaders/screen.vert", "../shaders/screen.frag", "screen");
 
         // Load Harry
         ResourceManager::LoadModel("../assets/skharrymesh.obj", "harry");
@@ -38,7 +39,7 @@ public:
         harry->modelResource = &ResourceManager::GetModel("harry");
         harry->transform.Position = glm::vec3(0.0f, 0.0f, 0.0f);
         harry->transform.Scale = glm::vec3(0.1f); // Adjust scale as needed
-        harry->transform.Rotation = glm::vec3(-90.0f, 0.0f, 0.0f); // OBJ often needs -90 X rot
+        harry->transform.Rotation = glm::vec3(0.0f, 0.0f, 0.0f); // OBJ often needs -90 X rot
 
         // --- Orbiting Light ---
         m_Light = CreateObject<PointLight>();
