@@ -6,21 +6,13 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
-    glViewport(0, 0, width, height);
-}
-
-// Added: Error callback to get detailed failure messages from GLFW
-void error_callback(int error, const char* description) {
-    std::cerr << "GLFW Error " << error << ": " << description << std::endl;
-}
-
 App::App(const std::string &title, int width, int height)
-    :m_Window(nullptr), m_Width(width), m_Height(height), m_IsRunning(false), m_Camera(glm::vec3(0.0f, 1.0f, 3.0f)) {
+    : m_IsRunning(false), m_Camera(glm::vec3(0.0f, 1.0f, 3.0f)) {
+
+    m_Window = std::make_unique<Window>(title, width, height);
 
     g = { 0.0f, 0.0f, 0.0f };
 
@@ -30,43 +22,9 @@ App::App(const std::string &title, int width, int height)
 App::~App() {
     m_LevelArena.destroy();
     m_FrameArena.destroy();
-
-    if (m_Window) {
-        glfwDestroyWindow(m_Window);
-    }
-
-    glfwTerminate();
 }
 
 void App::init() {
-    glfwInit();
-    glfwSetErrorCallback(error_callback);
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    // FIX: Required for macOS to use OpenGL 3.3+ Core Profile
-#ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#endif
-
-    m_Window = glfwCreateWindow(m_Width, m_Height, "hp3d", NULL, NULL);
-    if (m_Window == NULL) {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return;
-    }
-    glfwMakeContextCurrent(m_Window);
-    glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    glfwSetFramebufferSizeCallback(m_Window, framebuffer_size_callback);
-
-    // --- 2. Initialize GLAD ---
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cout << "Failed to initialize GLAD" << std::endl;
-        return;
-    }
-
     // --- 3. Initialize Memory Arenas ---
     // Level Arena: 64MB (Huge block for Mesh, Textures, Sound that stay loaded)
     m_LevelArena.init(64 * 1024 * 1024);
@@ -255,7 +213,7 @@ void App::init() {
 void App::run() {
     float lastFrame = 0.0f;
 
-    while (!glfwWindowShouldClose(m_Window) && m_IsRunning) {
+    while (!m_Window->ShouldClose() && m_IsRunning) {
         // --- Time Management ---
         float currentFrame = static_cast<float>(glfwGetTime());
         float deltaTime = currentFrame - lastFrame;
@@ -272,40 +230,40 @@ void App::run() {
         update(deltaTime);
         render();
 
-        // --- Window Management ---
-        glfwSwapBuffers(m_Window);
-        glfwPollEvents();
+        m_Window->Update();
     }
 }
 
 void App::process_input(float dt) {
-    if (glfwGetKey(m_Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(m_Window, true);
+    GLFWwindow* window = m_Window->GetNativeWindow();
+
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
 
     static bool tabPressed = false;
-    if (glfwGetKey(m_Window, GLFW_KEY_TAB) == GLFW_PRESS && !tabPressed) {
+    if (glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS && !tabPressed) {
         tabPressed = true;
-        int mode = glfwGetInputMode(m_Window, GLFW_CURSOR);
-        glfwSetInputMode(m_Window, GLFW_CURSOR,
+        int mode = glfwGetInputMode(window, GLFW_CURSOR);
+        glfwSetInputMode(window, GLFW_CURSOR,
             (mode == GLFW_CURSOR_DISABLED) ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
     }
-    if (glfwGetKey(m_Window, GLFW_KEY_TAB) == GLFW_RELEASE) {
+    if (glfwGetKey(window, GLFW_KEY_TAB) == GLFW_RELEASE) {
         tabPressed = false;
     }
 
     // Camera WASD
-    if (glfwGetKey(m_Window, GLFW_KEY_W) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         m_Camera.ProcessKeyboard(0, dt);
-    if (glfwGetKey(m_Window, GLFW_KEY_S) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
         m_Camera.ProcessKeyboard(1, dt);
-    if (glfwGetKey(m_Window, GLFW_KEY_A) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
         m_Camera.ProcessKeyboard(2, dt);
-    if (glfwGetKey(m_Window, GLFW_KEY_D) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         m_Camera.ProcessKeyboard(3, dt);
 
-    if (glfwGetInputMode(m_Window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED) {
+    if (glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED) {
         double xpos, ypos;
-        glfwGetCursorPos(m_Window, &xpos, &ypos);
+        glfwGetCursorPos(window, &xpos, &ypos);
 
         if (m_FirstMouse) {
             m_LastX = xpos;
@@ -464,7 +422,7 @@ void App::render() {
     // =========================================================
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     int displayW, displayH;
-    glfwGetFramebufferSize(m_Window, &displayW, &displayH);
+    glfwGetFramebufferSize(m_Window->GetNativeWindow(), &displayW, &displayH);
     glViewport(0, 0, displayW, displayH);
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST); // Disable depth for screen quad

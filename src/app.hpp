@@ -6,6 +6,7 @@
 #include <string>
 #include <glm/glm.hpp>
 
+#include "engine/window.hpp"
 #include "arena.hpp"
 #include "camera.hpp"
 #include "engine/resource_manager.hpp"
@@ -37,9 +38,7 @@ private:
     void render();
     void process_input(float dt);
 
-    GLFWwindow* m_Window;
-    int m_Width;
-    int m_Height;
+    std::unique_ptr<Window> m_Window;
     bool m_IsRunning;
 
     // std::unique_ptr<Renderer> m_Renderer;
