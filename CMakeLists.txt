@@ -62,7 +62,9 @@ add_executable(hp3d ${SOURCES}
         src/engine/resource_manager.cpp
         src/engine/resource_manager.hpp
         src/engine/window.cpp
-        src/engine/window.hpp)
+        src/engine/window.hpp
+        src/engine/renderer.cpp
+        src/engine/renderer.hpp)
 
 # --- 4. Linking ---
 # Note: OpenGL::GL usually handles includes automatically, but keeping explicit includes is fine.

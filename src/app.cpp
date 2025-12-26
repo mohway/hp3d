@@ -31,6 +31,8 @@ void App::init() {
     m_FrameArena.init(1 * 1024 * 1024);
     std::cout << "Initialized Frame Arena (1MB)" << std::endl;
 
+    m_Renderer.Init();
+
     // --- 4. Initialize Subsystems ---
     // m_Renderer = std::make_unique_ptr<Renderer>(); // TODO: Uncomment when Renderer class exists
     // m_Camera = std::make_unique_ptr<Camera>();     // TODO: Uncomment when Camera class exists
@@ -123,58 +125,6 @@ void App::init() {
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
-
-    // --- 5. Setup Framebuffer (The "Virtual Console") ---
-    glGenFramebuffers(1, &m_FBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
-
-    // Create a texture to render into (320x240)
-    glGenTextures(1, &m_TexColorBuffer);
-    glBindTexture(GL_TEXTURE_2D, m_TexColorBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, INTERNAL_WIDTH, INTERNAL_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-
-    // CRITICAL: Use GL_NEAREST for that crunchy pixelated look.
-    // GL_LINEAR would make it blurry (N64 style).
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    // Attach texture to FBO
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_TexColorBuffer, 0);
-
-    // Create Renderbuffer Object (RBO) for Depth/Stencil (we need depth testing!)
-    glGenRenderbuffers(1, &m_RBO);
-    glBindRenderbuffer(GL_RENDERBUFFER, m_RBO);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, INTERNAL_WIDTH, INTERNAL_HEIGHT);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_RBO);
-
-    // Check if FBO is complete
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-        std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind back to default
-
-    // --- 6. Setup Screen Quad (The TV Screen) ---
-    float quadVertices[] = {
-        // positions   // texCoords
-        -1.0f,  1.0f,  0.0f, 1.0f,
-        -1.0f, -1.0f,  0.0f, 0.0f,
-         1.0f, -1.0f,  1.0f, 0.0f,
-
-        -1.0f,  1.0f,  0.0f, 1.0f,
-         1.0f, -1.0f,  1.0f, 0.0f,
-         1.0f,  1.0f,  1.0f, 1.0f
-    };
-
-    glGenVertexArrays(1, &m_ScreenVAO);
-    glGenBuffers(1, &m_ScreenVBO);
-    glBindVertexArray(m_ScreenVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, m_ScreenVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
 
     // Compile the screen shader
     ResourceManager::LoadShader("../shaders/screen.vert", "../shaders/screen.frag", "screen");
@@ -306,125 +256,9 @@ void App::render() {
     // The "MVP" for the light
     glm::mat4 lightSpaceMatrix = lightProjection * lightView;
 
+    int width, height;
+    glfwGetFramebufferSize(m_Window->GetNativeWindow(), &width, &height);
+    glViewport(0, 0, width, height);
 
-    // =========================================================
-    // PASS 0: SHADOW MAP (Render depth from Light POV)
-    // =========================================================
-    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-    glBindFramebuffer(GL_FRAMEBUFFER, m_ShadowMapFBO);
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-
-    GLuint shadow_shader = ResourceManager::GetShader("shadow");
-
-    // Use Shadow Shader
-    glUseProgram(shadow_shader);
-
-    // Send the matrix we calculated at the top
-    glUniformMatrix4fv(glGetUniformLocation(shadow_shader, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
-
-    // --- DRAW SCENE (Shadow Pass) ---
-    // Floor
-    glm::mat4 model = glm::mat4(1.0f);
-    glUniformMatrix4fv(glGetUniformLocation(shadow_shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-    glBindVertexArray(m_vao);
-    glDrawArrays(GL_TRIANGLES, 0, m_FloorVertexCount);
-
-    // Character
-    model = glm::mat4(1.0f);
-    model = glm::scale(model, glm::vec3(0.1f));
-    // model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
-    glUniformMatrix4fv(glGetUniformLocation(shadow_shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-
-    for (const auto& mesh : m_HarryModel) {
-        // Note: Textures usually aren't needed for shadow maps unless you do alpha discard (transparency)
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, mesh.textureID);
-        glUniform1i(glGetUniformLocation(shadow_shader, "u_Texture"), 0);
-
-        glBindVertexArray(mesh.vao);
-        glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
-    }
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind Shadow Map
-
-
-    // =========================================================
-    // PASS 1: MAIN RENDER (Render Game to 320x240 FBO)
-    // =========================================================
-    glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
-    glViewport(0, 0, INTERNAL_WIDTH, INTERNAL_HEIGHT);
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    GLuint program = ResourceManager::GetShader("retro");
-    glUseProgram(program);
-
-    // --- Send Lighting Uniforms ---
-    // 1. Send the SAME Matrix used in Pass 0
-    glUniformMatrix4fv(glGetUniformLocation(program, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
-
-    unsigned int lightPosLoc   = glGetUniformLocation(program, "u_LightPos");
-    unsigned int lightColorLoc = glGetUniformLocation(program, "u_LightColor");
-    unsigned int rangeLoc      = glGetUniformLocation(program, "u_LightRange");
-    unsigned int ambientLoc    = glGetUniformLocation(program, "u_AmbientColor");
-
-    // 2. Send the SAME Position calculated at the top
-    glUniform3f(lightPosLoc, lightPos.x, lightPos.y, lightPos.z);
-
-    glUniform3f(lightColorLoc, 1.0f, 0.8f, 0.6f);    // Warm torch color
-    glUniform1f(rangeLoc, 50.0f);                    // 50 unit radius
-    glUniform3f(ambientLoc, 0.2f, 0.2f, 0.3f);       // Dark blue ambient
-
-    // Set View/Proj (Camera)
-    float aspectRatio = (float)INTERNAL_WIDTH / (float)INTERNAL_HEIGHT;
-    glm::mat4 projection = glm::perspective(glm::radians(m_Camera.Zoom), aspectRatio, 0.1f, 1000.0f);
-    glm::mat4 view = m_Camera.GetViewMatrix();
-    glUniformMatrix4fv(glGetUniformLocation(program, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(glGetUniformLocation(program, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    glUniform2f(glGetUniformLocation(program, "u_SnapResolution"), INTERNAL_WIDTH/2.0f, INTERNAL_HEIGHT/2.0f);
-
-    // Bind Shadow Map to Unit 1
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, m_ShadowMapTexture);
-    glUniform1i(glGetUniformLocation(program, "u_ShadowMap"), 1);
-
-    // --- DRAW SCENE (Main Pass) ---
-    // Floor
-    model = glm::mat4(1.0f);
-    glUniformMatrix4fv(glGetUniformLocation(program, "model"), 1, GL_FALSE, glm::value_ptr(model));
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, ResourceManager::GetTexture("zwin_floor"));
-    glUniform1i(glGetUniformLocation(program, "u_Texture"), 0);
-    glBindVertexArray(m_vao);
-    glDrawArrays(GL_TRIANGLES, 0, m_FloorVertexCount);
-
-    // Character
-    model = glm::mat4(1.0f);
-    model = glm::scale(model, glm::vec3(0.1f));
-    // model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
-    glUniformMatrix4fv(glGetUniformLocation(program, "model"), 1, GL_FALSE, glm::value_ptr(model));
-
-    for (const auto& mesh : m_HarryModel) {
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, mesh.textureID);
-        glUniform1i(glGetUniformLocation(program, "u_Texture"), 0);
-        glBindVertexArray(mesh.vao);
-        glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
-    }
-
-    // =========================================================
-    // PASS 2: UPSCALE (Render Quad to Screen)
-    // =========================================================
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    int displayW, displayH;
-    glfwGetFramebufferSize(m_Window->GetNativeWindow(), &displayW, &displayH);
-    glViewport(0, 0, displayW, displayH);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glDisable(GL_DEPTH_TEST); // Disable depth for screen quad
-
-    glUseProgram(ResourceManager::GetShader("screen"));
-    glBindVertexArray(m_ScreenVAO);
-    glBindTexture(GL_TEXTURE_2D, m_TexColorBuffer);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    m_Renderer.DrawFrame(m_Camera, m_HarryModel, m_vao, m_FloorVertexCount);
 }

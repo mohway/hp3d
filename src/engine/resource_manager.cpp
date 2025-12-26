@@ -198,14 +198,14 @@ Model ResourceManager::loadModelFromFile(const char* objPath) {
     // Group Geometry by Material
     std::map<int, std::vector<float>> sortedGeometry;
 
-    for (const auto& shape : shapes) {
+    for (const auto&[name, mesh, lines, points] : shapes) {
         size_t index_offset = 0;
-        for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
-            int currentMaterialId = shape.mesh.material_ids[f];
+        for (size_t f = 0; f < mesh.num_face_vertices.size(); f++) {
+            int currentMaterialId = mesh.material_ids[f];
             if (currentMaterialId < 0) currentMaterialId = 0;
 
             for (size_t v = 0; v < 3; v++) {
-                tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
+                tinyobj::index_t idx = mesh.indices[index_offset + v];
 
                 // Pos
                 sortedGeometry[currentMaterialId].push_back(attrib.vertices[3 * idx.vertex_index + 0]);

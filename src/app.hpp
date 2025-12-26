@@ -10,6 +10,7 @@
 #include "arena.hpp"
 #include "camera.hpp"
 #include "engine/resource_manager.hpp"
+#include "engine/renderer.hpp"
 
 // class Renderer;
 // class Camera;
@@ -28,10 +29,9 @@ private:
     void process_input(float dt);
 
     std::unique_ptr<Window> m_Window;
+    Renderer m_Renderer;
+    Camera m_Camera;
     bool m_IsRunning;
-
-    // std::unique_ptr<Renderer> m_Renderer;
-    // std::unique_ptr<Camera> m_Camera;
 
     // ====== GLOBALS
 
@@ -48,22 +48,6 @@ private:
     ShaderProgram shader_program;
     unsigned int m_vao, m_vbo;
     int m_FloorVertexCount;
-
-    // FBO Stuff
-    unsigned int m_FBO;         // The Framebuffer Object
-    unsigned int m_TexColorBuffer; // The Texture we render to
-    unsigned int m_RBO;         // The Depth Buffer for the FBO
-
-    // Screen Quad Stuff
-    unsigned int m_ScreenVAO, m_ScreenVBO;
-    unsigned int m_ScreenShader; // The compiled screen.vert/frag
-
-    // Settings
-    const int INTERNAL_WIDTH = 320;
-    const int INTERNAL_HEIGHT = 240;
-
-    // Camera System
-    Camera m_Camera;
 
     // Mouse State
     float m_LastX = 400, m_LastY = 300;
