@@ -58,7 +58,9 @@ add_executable(hp3d ${SOURCES}
         src/arena.cpp
         src/arena.hpp
         src/camera.cpp
-        src/camera.hpp)
+        src/camera.hpp
+        src/engine/resource_manager.cpp
+        src/engine/resource_manager.hpp)
 
 # --- 4. Linking ---
 # Note: OpenGL::GL usually handles includes automatically, but keeping explicit includes is fine.

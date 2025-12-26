@@ -8,6 +8,7 @@
 
 #include "arena.hpp"
 #include "camera.hpp"
+#include "engine/resource_manager.hpp"
 
 // class Renderer;
 // class Camera;
@@ -56,9 +57,7 @@ private:
     Arena m_LevelArena;
     Arena m_FrameArena;
 
-    unsigned int create_shader(const char* vertex_path, const char* frag_path);
-    unsigned int load_texture(const char* path);
-    unsigned int m_shader_program;
+    ShaderProgram shader_program;
     unsigned int m_vao, m_vbo;
     int m_FloorVertexCount;
 

@@ -6,8 +6,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -19,40 +17,6 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 // Added: Error callback to get detailed failure messages from GLFW
 void error_callback(int error, const char* description) {
     std::cerr << "GLFW Error " << error << ": " << description << std::endl;
-}
-
-unsigned int App::load_texture(const char* path) {
-    unsigned int textureID;
-    glGenTextures(1, &textureID);
-
-    int width, height, nrComponents;
-    // PS1 textures didn't strictly flip, but OpenGL usually expects it.
-    stbi_set_flip_vertically_on_load(true);
-
-    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
-    if (data) {
-        GLenum format;
-        if (nrComponents == 1) format = GL_RED;
-        else if (nrComponents == 3) format = GL_RGB;
-        else if (nrComponents == 4) format = GL_RGBA;
-
-        glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-
-        // PS1 Style: Pixelated textures (Nearest Neighbor)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-        stbi_image_free(data);
-    } else {
-        std::cout << "Texture failed to load at path: " << path << std::endl;
-        stbi_image_free(data);
-    }
-
-    return textureID;
 }
 
 App::App(const std::string &title, int width, int height)
@@ -116,10 +80,9 @@ void App::init() {
     // m_Renderer = std::make_unique_ptr<Renderer>(); // TODO: Uncomment when Renderer class exists
     // m_Camera = std::make_unique_ptr<Camera>();     // TODO: Uncomment when Camera class exists
 
-    m_shader_program = create_shader("../shaders/retro.vert", "../shaders/retro.frag");
+    ResourceManager::LoadShader("../shaders/retro.vert", "../shaders/retro.frag", "retro");
+    ResourceManager::LoadTexture("../textures/zwin_02.png", "zwin_floor");
 
-    m_FloorTexture = load_texture("../textures/zwin_02.png"); // Make sure to create this folder/file!
-    // m_Model = load_model("../assets/levels/01/Adv1Willow.obj");
     m_Model = load_model("../assets/skharrymesh.obj");
 
     float size = 50.0f;
@@ -259,7 +222,7 @@ void App::init() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
 
     // Compile the screen shader
-    m_ScreenShader = create_shader("../shaders/screen.vert", "../shaders/screen.frag");
+    ResourceManager::LoadShader("../shaders/screen.vert", "../shaders/screen.frag", "screen");
 
     glGenFramebuffers(1, &m_ShadowMapFBO);
 
@@ -284,7 +247,7 @@ void App::init() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Compile Shadow Shader
-    m_ShadowShader = create_shader("../shaders/shadow.vert", "../shaders/shadow.frag");
+    ResourceManager::LoadShader("../shaders/shadow.vert", "../shaders/shadow.frag", "shadow");
 
     m_IsRunning = true;
 }
@@ -397,16 +360,18 @@ void App::render() {
     glClear(GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
 
+    GLuint shadow_shader = ResourceManager::GetShader("shadow");
+
     // Use Shadow Shader
-    glUseProgram(m_ShadowShader);
+    glUseProgram(shadow_shader);
 
     // Send the matrix we calculated at the top
-    glUniformMatrix4fv(glGetUniformLocation(m_ShadowShader, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+    glUniformMatrix4fv(glGetUniformLocation(shadow_shader, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
     // --- DRAW SCENE (Shadow Pass) ---
     // Floor
     glm::mat4 model = glm::mat4(1.0f);
-    glUniformMatrix4fv(glGetUniformLocation(m_ShadowShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(shadow_shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
     glBindVertexArray(m_vao);
     glDrawArrays(GL_TRIANGLES, 0, m_FloorVertexCount);
 
@@ -414,13 +379,13 @@ void App::render() {
     model = glm::mat4(1.0f);
     model = glm::scale(model, glm::vec3(0.1f));
     // model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
-    glUniformMatrix4fv(glGetUniformLocation(m_ShadowShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(shadow_shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
     for (const auto& mesh : m_Model) {
         // Note: Textures usually aren't needed for shadow maps unless you do alpha discard (transparency)
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mesh.textureID);
-        glUniform1i(glGetUniformLocation(m_ShadowShader, "u_Texture"), 0);
+        glUniform1i(glGetUniformLocation(shadow_shader, "u_Texture"), 0);
 
         glBindVertexArray(mesh.vao);
         glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
@@ -437,16 +402,17 @@ void App::render() {
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glUseProgram(m_shader_program);
+    GLuint program = ResourceManager::GetShader("retro");
+    glUseProgram(program);
 
     // --- Send Lighting Uniforms ---
     // 1. Send the SAME Matrix used in Pass 0
-    glUniformMatrix4fv(glGetUniformLocation(m_shader_program, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+    glUniformMatrix4fv(glGetUniformLocation(program, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
-    unsigned int lightPosLoc   = glGetUniformLocation(m_shader_program, "u_LightPos");
-    unsigned int lightColorLoc = glGetUniformLocation(m_shader_program, "u_LightColor");
-    unsigned int rangeLoc      = glGetUniformLocation(m_shader_program, "u_LightRange");
-    unsigned int ambientLoc    = glGetUniformLocation(m_shader_program, "u_AmbientColor");
+    unsigned int lightPosLoc   = glGetUniformLocation(program, "u_LightPos");
+    unsigned int lightColorLoc = glGetUniformLocation(program, "u_LightColor");
+    unsigned int rangeLoc      = glGetUniformLocation(program, "u_LightRange");
+    unsigned int ambientLoc    = glGetUniformLocation(program, "u_AmbientColor");
 
     // 2. Send the SAME Position calculated at the top
     glUniform3f(lightPosLoc, lightPos.x, lightPos.y, lightPos.z);
@@ -459,22 +425,22 @@ void App::render() {
     float aspectRatio = (float)INTERNAL_WIDTH / (float)INTERNAL_HEIGHT;
     glm::mat4 projection = glm::perspective(glm::radians(m_Camera.Zoom), aspectRatio, 0.1f, 1000.0f);
     glm::mat4 view = m_Camera.GetViewMatrix();
-    glUniformMatrix4fv(glGetUniformLocation(m_shader_program, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(glGetUniformLocation(m_shader_program, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    glUniform2f(glGetUniformLocation(m_shader_program, "u_SnapResolution"), INTERNAL_WIDTH/2.0f, INTERNAL_HEIGHT/2.0f);
+    glUniformMatrix4fv(glGetUniformLocation(program, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(program, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glUniform2f(glGetUniformLocation(program, "u_SnapResolution"), INTERNAL_WIDTH/2.0f, INTERNAL_HEIGHT/2.0f);
 
     // Bind Shadow Map to Unit 1
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, m_ShadowMapTexture);
-    glUniform1i(glGetUniformLocation(m_shader_program, "u_ShadowMap"), 1);
+    glUniform1i(glGetUniformLocation(program, "u_ShadowMap"), 1);
 
     // --- DRAW SCENE (Main Pass) ---
     // Floor
     model = glm::mat4(1.0f);
-    glUniformMatrix4fv(glGetUniformLocation(m_shader_program, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(program, "model"), 1, GL_FALSE, glm::value_ptr(model));
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_FloorTexture);
-    glUniform1i(glGetUniformLocation(m_shader_program, "u_Texture"), 0);
+    glBindTexture(GL_TEXTURE_2D, ResourceManager::GetTexture("zwin_floor"));
+    glUniform1i(glGetUniformLocation(program, "u_Texture"), 0);
     glBindVertexArray(m_vao);
     glDrawArrays(GL_TRIANGLES, 0, m_FloorVertexCount);
 
@@ -482,12 +448,12 @@ void App::render() {
     model = glm::mat4(1.0f);
     model = glm::scale(model, glm::vec3(0.1f));
     // model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
-    glUniformMatrix4fv(glGetUniformLocation(m_shader_program, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(program, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
     for (const auto& mesh : m_Model) {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mesh.textureID);
-        glUniform1i(glGetUniformLocation(m_shader_program, "u_Texture"), 0);
+        glUniform1i(glGetUniformLocation(program, "u_Texture"), 0);
         glBindVertexArray(mesh.vao);
         glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
     }
@@ -503,80 +469,10 @@ void App::render() {
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST); // Disable depth for screen quad
 
-    glUseProgram(m_ScreenShader);
+    glUseProgram(ResourceManager::GetShader("screen"));
     glBindVertexArray(m_ScreenVAO);
     glBindTexture(GL_TEXTURE_2D, m_TexColorBuffer);
     glDrawArrays(GL_TRIANGLES, 0, 6);
-}
-
-unsigned int App::create_shader(const char* vertexPath, const char* fragmentPath) {
-    // 1. Retrieve the vertex/fragment source code from filePath
-    std::string vertexCode;
-    std::string fragmentCode;
-    std::ifstream vShaderFile;
-    std::ifstream fShaderFile;
-
-    // Ensure ifstream objects can throw exceptions:
-    vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-
-    try {
-        // Open files (adjust paths if you run from different dirs)
-        vShaderFile.open(vertexPath);
-        fShaderFile.open(fragmentPath);
-        std::stringstream vShaderStream, fShaderStream;
-        vShaderStream << vShaderFile.rdbuf();
-        fShaderStream << fShaderFile.rdbuf();
-        vShaderFile.close();
-        fShaderFile.close();
-        vertexCode = vShaderStream.str();
-        fragmentCode = fShaderStream.str();
-    } catch (std::ifstream::failure& e) {
-        std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: " << e.what() << std::endl;
-    }
-
-    const char* vShaderCode = vertexCode.c_str();
-    const char* fShaderCode = fragmentCode.c_str();
-
-    // 2. Compile shaders
-    unsigned int vertex, fragment;
-    int success;
-    char infoLog[512];
-
-    // Vertex Shader
-    vertex = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex, 1, &vShaderCode, NULL);
-    glCompileShader(vertex);
-    glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(vertex, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    // Fragment Shader
-    fragment = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment, 1, &fShaderCode, NULL);
-    glCompileShader(fragment);
-    glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(fragment, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    // Shader Program
-    unsigned int ID = glCreateProgram();
-    glAttachShader(ID, vertex);
-    glAttachShader(ID, fragment);
-    glLinkProgram(ID);
-    glGetProgramiv(ID, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(ID, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
-    }
-
-    glDeleteShader(vertex);
-    glDeleteShader(fragment);
-    return ID;
 }
 
 App::Model App::load_model(const char* objPath) {
@@ -661,10 +557,10 @@ App::Model App::load_model(const char* objPath) {
         if (matID < materials.size() && !materials[matID].diffuse_texname.empty()) {
             std::string texPath = baseDir + materials[matID].diffuse_texname;
             // Check if we already loaded this texture? (Optimization for later)
-            subMesh.textureID = load_texture(texPath.c_str());
+            subMesh.textureID = ResourceManager::LoadTexture(texPath.c_str(), materials[matID].diffuse_texname);
         } else {
             // Fallback texture if none specified in MTL
-            subMesh.textureID = m_FloorTexture;
+            subMesh.textureID = ResourceManager::GetTexture("zwin_floor");
         }
 
         // B. Create VAO/VBO
