@@ -19,18 +19,7 @@ class App {
 public:
     App(const std::string& title, int width, int height);
     ~App();
-
     void run();
-
-    struct SubMesh {
-        unsigned int vao;
-        unsigned int vbo;
-        unsigned int textureID;
-        int vertexCount;
-    };
-
-    // A "Model" is just a list of parts
-    using Model = std::vector<SubMesh>;
 
 private:
     void init();
@@ -80,12 +69,8 @@ private:
     float m_LastX = 400, m_LastY = 300;
     bool m_FirstMouse = true;
 
-    unsigned int m_FloorTexture;
-
-    Model load_model(const char* objPath);
-
     // The loaded model
-    Model m_Model;
+    Model m_HarryModel;
 
     unsigned int m_ShadowMapFBO;
     unsigned int m_ShadowMapTexture;

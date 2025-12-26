@@ -7,8 +7,12 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-std::map<std::string, Texture2D> ResourceManager::Textures;
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
+std::map<std::string, Texture2D>     ResourceManager::Textures;
 std::map<std::string, ShaderProgram> ResourceManager::Shaders;
+std::map<std::string, Model>         ResourceManager::Models;
 
 unsigned int ResourceManager::LoadTexture(const char *file, const std::string& name) {
     if (Textures.contains(name)) {
@@ -45,6 +49,12 @@ unsigned int ResourceManager::GetShader(const std::string& name) {
 void ResourceManager::Clear() {
     for (const auto& iter : Textures) glDeleteTextures(1, &iter.second.ID);
     for (const auto& iter : Shaders) glDeleteProgram(iter.second.ID);
+    for (auto& iter : Models) {
+        for (auto& mesh : iter.second) {
+            glDeleteVertexArrays(1, &mesh.vao);
+            glDeleteBuffers(1, &mesh.vbo);
+        }
+    }
 }
 
 Texture2D ResourceManager::loadTextureFromFile(const char *file) {
@@ -149,4 +159,120 @@ ShaderProgram ResourceManager::loadShaderFromFile(const char *vertexPath, const 
     glDeleteShader(fragment);
 
     return { .ID = ID };
+}
+
+Model& ResourceManager::LoadModel(const char* file, std::string name) {
+    if (Models.find(name) != Models.end())
+        return Models[name];
+
+    Models[name] = loadModelFromFile(file);
+    return Models[name];
+}
+
+Model& ResourceManager::GetModel(std::string name) {
+    return Models[name];
+}
+
+Model ResourceManager::loadModelFromFile(const char* objPath) {
+    Model model;
+
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
+
+    // Handle base directory for textures
+    std::string baseDir = objPath;
+    if (baseDir.find_last_of("/\\") != std::string::npos) {
+        baseDir = baseDir.substr(0, baseDir.find_last_of("/\\") + 1);
+    } else {
+        baseDir = "";
+    }
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, objPath, baseDir.c_str());
+
+    if (!warn.empty()) std::cout << "OBJ Warning: " << warn << std::endl;
+    if (!err.empty()) std::cerr << "OBJ Error: " << err << std::endl;
+    if (!ret) return model;
+
+    // Group Geometry by Material
+    std::map<int, std::vector<float>> sortedGeometry;
+
+    for (const auto& shape : shapes) {
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
+            int currentMaterialId = shape.mesh.material_ids[f];
+            if (currentMaterialId < 0) currentMaterialId = 0;
+
+            for (size_t v = 0; v < 3; v++) {
+                tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
+
+                // Pos
+                sortedGeometry[currentMaterialId].push_back(attrib.vertices[3 * idx.vertex_index + 0]);
+                sortedGeometry[currentMaterialId].push_back(attrib.vertices[3 * idx.vertex_index + 1]);
+                sortedGeometry[currentMaterialId].push_back(attrib.vertices[3 * idx.vertex_index + 2]);
+
+                // Tex
+                if (idx.texcoord_index >= 0) {
+                    sortedGeometry[currentMaterialId].push_back(attrib.texcoords[2 * idx.texcoord_index + 0]);
+                    sortedGeometry[currentMaterialId].push_back(attrib.texcoords[2 * idx.texcoord_index + 1]);
+                } else {
+                    sortedGeometry[currentMaterialId].push_back(0.0f);
+                    sortedGeometry[currentMaterialId].push_back(0.0f);
+                }
+
+                // Normal
+                if (idx.normal_index >= 0) {
+                    sortedGeometry[currentMaterialId].push_back(attrib.normals[3 * idx.normal_index + 0]);
+                    sortedGeometry[currentMaterialId].push_back(attrib.normals[3 * idx.normal_index + 1]);
+                    sortedGeometry[currentMaterialId].push_back(attrib.normals[3 * idx.normal_index + 2]);
+                } else {
+                    sortedGeometry[currentMaterialId].push_back(0.0f);
+                    sortedGeometry[currentMaterialId].push_back(1.0f);
+                    sortedGeometry[currentMaterialId].push_back(0.0f);
+                }
+            }
+            index_offset += 3;
+        }
+    }
+
+    // Create SubMeshes
+    for (auto& [matID, data] : sortedGeometry) {
+        SubMesh subMesh = {};
+
+        // Texture Loading
+        if (matID < materials.size() && !materials[matID].diffuse_texname.empty()) {
+            std::string texName = materials[matID].diffuse_texname;
+            std::string texPath = baseDir + texName;
+            subMesh.textureID = ResourceManager::LoadTexture(texPath.c_str(), texName);
+        } else {
+            subMesh.textureID = ResourceManager::GetTexture("zwin_floor"); // Default fallback
+        }
+
+        subMesh.vertexCount = data.size() / 8; // 8 floats per vertex
+
+        glGenVertexArrays(1, &subMesh.vao);
+        glGenBuffers(1, &subMesh.vbo);
+        glBindVertexArray(subMesh.vao);
+        glBindBuffer(GL_ARRAY_BUFFER, subMesh.vbo);
+
+        // Upload directly from the vector.
+        // This is safe because 'data' exists until the end of this loop scope.
+        // We don't need the Arena here unless we want to keep CPU data persistently.
+        glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), data.data(), GL_STATIC_DRAW);
+
+        int stride = 8 * sizeof(float);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(5 * sizeof(float)));
+
+        glBindVertexArray(0);
+        model.push_back(subMesh);
+    }
+
+    std::cout << "Loaded Model: " << objPath << " (" << model.size() << " submeshes)" << std::endl;
+    return model;
 }
