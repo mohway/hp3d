@@ -120,7 +120,6 @@ void App::init() {
 
     m_FloorTexture = load_texture("../textures/zwin_02.png"); // Make sure to create this folder/file!
     // m_Model = load_model("../assets/levels/01/Adv1Willow.obj");
-
     m_Model = load_model("../assets/skharrymesh.obj");
 
     float size = 50.0f;
@@ -262,6 +261,31 @@ void App::init() {
     // Compile the screen shader
     m_ScreenShader = create_shader("../shaders/screen.vert", "../shaders/screen.frag");
 
+    glGenFramebuffers(1, &m_ShadowMapFBO);
+
+    glGenTextures(1, &m_ShadowMapTexture);
+    glBindTexture(GL_TEXTURE_2D, m_ShadowMapTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+                 SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Clamp to Border (Critical! prevents shadows repeating outside the map)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, m_ShadowMapFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_ShadowMapTexture, 0);
+    glDrawBuffer(GL_NONE); // No color buffer needed
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Compile Shadow Shader
+    m_ShadowShader = create_shader("../shaders/shadow.vert", "../shaders/shadow.frag");
+
     m_IsRunning = true;
 }
 
@@ -344,94 +368,140 @@ void App::update(float dt) {
 
 void App::render() {
     // =========================================================
-    // PASS 1: Render the GAME to the tiny FBO (320x240)
+    // 1. UPDATE STEP (Calculate Physics/Math First)
+    // =========================================================
+
+    // Calculate Dynamic Light Position (Orbiting)
+    float time = (float)glfwGetTime();
+    // Orbit radius 20, Height 10
+    glm::vec3 lightPos = glm::vec3(sin(time) * 10.0f, 5.0f, cos(time) * 10.0f);
+
+    // Calculate Light Matrix
+    // Note: Ortho means "Sun-like" parallel shadows.
+    // If you want "Torch-like" perspective shadows, switch glm::ortho to glm::perspective.
+    float orthoSize = 15.0f;
+    glm::mat4 lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, 1.0f, 100.0f); // Increased Far plane slightly
+
+    // Make the shadow camera look at the center of the world (0,0,0) from the lightPos
+    glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+    // The "MVP" for the light
+    glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+
+
+    // =========================================================
+    // PASS 0: SHADOW MAP (Render depth from Light POV)
+    // =========================================================
+    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_ShadowMapFBO);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+
+    // Use Shadow Shader
+    glUseProgram(m_ShadowShader);
+
+    // Send the matrix we calculated at the top
+    glUniformMatrix4fv(glGetUniformLocation(m_ShadowShader, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+
+    // --- DRAW SCENE (Shadow Pass) ---
+    // Floor
+    glm::mat4 model = glm::mat4(1.0f);
+    glUniformMatrix4fv(glGetUniformLocation(m_ShadowShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glBindVertexArray(m_vao);
+    glDrawArrays(GL_TRIANGLES, 0, m_FloorVertexCount);
+
+    // Character
+    model = glm::mat4(1.0f);
+    model = glm::scale(model, glm::vec3(0.1f));
+    // model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
+    glUniformMatrix4fv(glGetUniformLocation(m_ShadowShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+
+    for (const auto& mesh : m_Model) {
+        // Note: Textures usually aren't needed for shadow maps unless you do alpha discard (transparency)
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, mesh.textureID);
+        glUniform1i(glGetUniformLocation(m_ShadowShader, "u_Texture"), 0);
+
+        glBindVertexArray(mesh.vao);
+        glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind Shadow Map
+
+
+    // =========================================================
+    // PASS 1: MAIN RENDER (Render Game to 320x240 FBO)
     // =========================================================
     glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
     glViewport(0, 0, INTERNAL_WIDTH, INTERNAL_HEIGHT);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
 
     glUseProgram(m_shader_program);
+
+    // --- Send Lighting Uniforms ---
+    // 1. Send the SAME Matrix used in Pass 0
+    glUniformMatrix4fv(glGetUniformLocation(m_shader_program, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
     unsigned int lightPosLoc   = glGetUniformLocation(m_shader_program, "u_LightPos");
     unsigned int lightColorLoc = glGetUniformLocation(m_shader_program, "u_LightColor");
     unsigned int rangeLoc      = glGetUniformLocation(m_shader_program, "u_LightRange");
     unsigned int ambientLoc    = glGetUniformLocation(m_shader_program, "u_AmbientColor");
 
-    // Make a light orbit the scene
-    float time = (float)glfwGetTime();
-    float lightX = sin(time) * 20.0f;
-    float lightZ = cos(time) * 20.0f;
+    // 2. Send the SAME Position calculated at the top
+    glUniform3f(lightPosLoc, lightPos.x, lightPos.y, lightPos.z);
 
-    glUniform3f(lightPosLoc, lightX, 10.0f, lightZ); // Light at height 10
     glUniform3f(lightColorLoc, 1.0f, 0.8f, 0.6f);    // Warm torch color
     glUniform1f(rangeLoc, 50.0f);                    // 50 unit radius
     glUniform3f(ambientLoc, 0.2f, 0.2f, 0.3f);       // Dark blue ambient
 
-    // --- GLOBAL UNIFORMS (View/Projection apply to everything) ---
+    // Set View/Proj (Camera)
     float aspectRatio = (float)INTERNAL_WIDTH / (float)INTERNAL_HEIGHT;
     glm::mat4 projection = glm::perspective(glm::radians(m_Camera.Zoom), aspectRatio, 0.1f, 1000.0f);
     glm::mat4 view = m_Camera.GetViewMatrix();
+    glUniformMatrix4fv(glGetUniformLocation(m_shader_program, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(m_shader_program, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glUniform2f(glGetUniformLocation(m_shader_program, "u_SnapResolution"), INTERNAL_WIDTH/2.0f, INTERNAL_HEIGHT/2.0f);
 
-    unsigned int modelLoc = glGetUniformLocation(m_shader_program, "model");
-    unsigned int viewLoc  = glGetUniformLocation(m_shader_program, "view");
-    unsigned int projLoc  = glGetUniformLocation(m_shader_program, "projection");
-    unsigned int snapLoc  = glGetUniformLocation(m_shader_program, "u_SnapResolution");
-    unsigned int texLoc   = glGetUniformLocation(m_shader_program, "u_Texture");
+    // Bind Shadow Map to Unit 1
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, m_ShadowMapTexture);
+    glUniform1i(glGetUniformLocation(m_shader_program, "u_ShadowMap"), 1);
 
-    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
-    glUniform2f(snapLoc, INTERNAL_WIDTH / 1.0f, (float)INTERNAL_HEIGHT / 1.0f);
-
-    // =========================================================
-    // PART 1: DRAW THE FLOOR (Static)
-    // =========================================================
-    // 1. Reset Model Matrix to Identity (No rotation, scale 1.0)
-    glm::mat4 floorModel = glm::mat4(1.0f);
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(floorModel));
-
-    // 2. Bind Floor Texture
+    // --- DRAW SCENE (Main Pass) ---
+    // Floor
+    model = glm::mat4(1.0f);
+    glUniformMatrix4fv(glGetUniformLocation(m_shader_program, "model"), 1, GL_FALSE, glm::value_ptr(model));
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_FloorTexture);
-    glUniform1i(texLoc, 0);
-
-    // 3. Draw Floor VAO
+    glUniform1i(glGetUniformLocation(m_shader_program, "u_Texture"), 0);
     glBindVertexArray(m_vao);
     glDrawArrays(GL_TRIANGLES, 0, m_FloorVertexCount);
 
-    // =========================================================
-    // PART 2: DRAW THE CHARACTER (Rotating)
-    // =========================================================
-    // 1. Calculate Character Transform
-    glm::mat4 charModel = glm::mat4(1.0f);
-    charModel = glm::translate(charModel, glm::vec3(0.0f, 0.0f, 0.0f)); // Optional: Adjust height
-    charModel = glm::scale(charModel, glm::vec3(0.1f));                 // Scale down 10x
-   //charModel = glm::rotate(charModel, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f)); // Spin
+    // Character
+    model = glm::mat4(1.0f);
+    model = glm::scale(model, glm::vec3(0.1f));
+    // model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
+    glUniformMatrix4fv(glGetUniformLocation(m_shader_program, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-    // 2. Update Uniform (Crucial Step: This overrides the floor's matrix)
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(charModel));
-
-    // 3. Draw Character Submeshes
     for (const auto& mesh : m_Model) {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mesh.textureID);
-        glUniform1i(texLoc, 0);
-
+        glUniform1i(glGetUniformLocation(m_shader_program, "u_Texture"), 0);
         glBindVertexArray(mesh.vao);
         glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
     }
 
+
     // =========================================================
-    // PASS 2: Render the FBO Texture to the Screen (Upscale)
+    // PASS 2: UPSCALE (Render Quad to Screen)
     // =========================================================
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     int displayW, displayH;
     glfwGetFramebufferSize(m_Window, &displayW, &displayH);
     glViewport(0, 0, displayW, displayH);
-
     glClear(GL_COLOR_BUFFER_BIT);
-    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_DEPTH_TEST); // Disable depth for screen quad
 
     glUseProgram(m_ScreenShader);
     glBindVertexArray(m_ScreenVAO);

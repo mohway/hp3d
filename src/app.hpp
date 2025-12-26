@@ -88,4 +88,9 @@ private:
 
     // The loaded model
     Model m_Model;
+
+    unsigned int m_ShadowMapFBO;
+    unsigned int m_ShadowMapTexture;
+    unsigned int m_ShadowShader;
+    const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048; // Crisp shadows
 };
