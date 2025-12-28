@@ -9,6 +9,7 @@ Renderer::~Renderer() {}
 void Renderer::Init() {
     InitFramebuffers();
     InitScreenQuad();
+    InitDebugCube();
 
     float planeVertices[] = {
         // Pos           // Normal       // Tex
@@ -257,5 +258,89 @@ void Renderer::RenderComposite(int screenHeight, int screenWidth) {
 void Renderer::DrawMesh(const SubMesh& mesh, unsigned int shaderID) {
     glBindVertexArray(mesh.vao);
     glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
+    glBindVertexArray(0);
+}
+
+void Renderer::InitDebugCube() {
+    float vertices[] = {
+        // A simple unit cube (-0.5 to 0.5) line strip
+        -0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f,  0.5f, 0.5f, -0.5f,  -0.5f, 0.5f, -0.5f, -0.5f, -0.5f, -0.5f, // Back Face
+        -0.5f, -0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f, 0.5f,  0.5f,  -0.5f, 0.5f,  0.5f, -0.5f, -0.5f,  0.5f, // Front Face
+        -0.5f, -0.5f, -0.5f, -0.5f, -0.5f,  0.5f, // Bottom Left Edge
+         0.5f, -0.5f, -0.5f,  0.5f, -0.5f,  0.5f, // Bottom Right Edge
+         0.5f,  0.5f, -0.5f,  0.5f,  0.5f,  0.5f, // Top Right Edge
+        -0.5f,  0.5f, -0.5f, -0.5f,  0.5f,  0.5f  // Top Left Edge
+    };
+    // Note: GL_LINES is easier, but let's assume we draw lines manually or use LineLoop/Lines
+    // Actually, explicit pairs (GL_LINES) is best for specific wireframes.
+    // Let's rewrite vertices for GL_LINES for a full cube.
+
+    std::vector<float> lineVerts = {
+        -0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f,
+         0.5f, -0.5f, -0.5f,  0.5f,  0.5f, -0.5f,
+         0.5f,  0.5f, -0.5f, -0.5f,  0.5f, -0.5f,
+        -0.5f,  0.5f, -0.5f, -0.5f, -0.5f, -0.5f,
+
+        -0.5f, -0.5f,  0.5f,  0.5f, -0.5f,  0.5f,
+         0.5f, -0.5f,  0.5f,  0.5f,  0.5f,  0.5f,
+         0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f,
+        -0.5f,  0.5f,  0.5f, -0.5f, -0.5f,  0.5f,
+
+        -0.5f, -0.5f, -0.5f, -0.5f, -0.5f,  0.5f,
+         0.5f, -0.5f, -0.5f,  0.5f, -0.5f,  0.5f,
+         0.5f,  0.5f, -0.5f,  0.5f,  0.5f,  0.5f,
+        -0.5f,  0.5f, -0.5f, -0.5f,  0.5f,  0.5f
+    };
+
+    glGenVertexArrays(1, &m_DebugCubeVAO);
+    glGenBuffers(1, &m_DebugCubeVBO);
+    glBindVertexArray(m_DebugCubeVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_DebugCubeVBO);
+    glBufferData(GL_ARRAY_BUFFER, lineVerts.size() * sizeof(float), lineVerts.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+}
+
+void Renderer::RenderDebug(const std::vector<GameObject*>& objects, const Camera& camera) {
+    // Re-use the 'retro' shader (or a simpler one if you have it)
+    // Ideally, make a "debug.vert" / "debug.frag" that is just solid color.
+    // For now, let's just hack the retro shader or assume a basic shader exists.
+    // We will assume ResourceManager::GetShader("debug") exists.
+
+    unsigned int shader = ResourceManager::GetShader("debug");
+    if(shader == 0) {
+        std::cout << "Wtf" << std::endl;
+        return;
+    }; // Fail safely
+
+    glUseProgram(shader);
+
+    glm::mat4 view = camera.GetViewMatrix();
+    glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)INTERNAL_WIDTH/INTERNAL_HEIGHT, 0.1f, 1000.0f);
+
+    glUniformMatrix4fv(glGetUniformLocation(shader, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glUniform3f(glGetUniformLocation(shader, "color"), 0.0f, 1.0f, 0.0f); // Green
+
+    glBindVertexArray(m_DebugCubeVAO);
+
+    for (const auto* obj : objects) {
+        if (!obj->hasCollision) continue;
+
+        // Visualizing the AABB is tricky because AABBs are World Space,
+        // but we are drawing a Unit Cube scaled up.
+        // We need to construct a model matrix that puts the Unit Cube
+        // at the center of the AABB and scales it to the AABB size.
+
+        glm::vec3 center = obj->collider.GetCenter();
+        glm::vec3 size = obj->collider.GetSize();
+
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, center);
+        model = glm::scale(model, size);
+
+        glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glDrawArrays(GL_LINES, 0, 24);
+    }
     glBindVertexArray(0);
 }

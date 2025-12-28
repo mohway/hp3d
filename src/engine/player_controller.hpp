@@ -33,9 +33,6 @@ public:
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) moveX = -1.0f;
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) moveX =  1.0f;
 
-        // If no input, stop (and maybe play idle animation later)
-        if (moveX == 0.0f && moveZ == 0.0f) return;
-
         // 2. Calculate Direction relative to Camera
         // We only care about the XZ plane (flat ground), so we zero out the Y component
         glm::vec3 camForward = m_Camera->Front;
@@ -75,7 +72,7 @@ public:
         // Calculate the angle in degrees
         if (glm::length(moveDir) > 0.1f) {
             float targetAngle = glm::degrees(atan2(moveDir.x, moveDir.z));
-            targetAngle += 180.0f; // Correction for model orientation
+            targetAngle += 90.0f; // Correction for model orientation
 
             float currentAngle = m_Player->transform.Rotation.y;
             float angleDiff = targetAngle - currentAngle;
@@ -140,7 +137,7 @@ private:
     float m_RotationOffset = 90.0f;
 
     glm::vec3 m_Velocity = glm::vec3(0.0f);
-    float m_Gravity = -20.0f;
-    float m_JumpForce = 8.0f;
+    float m_Gravity = -35.0f;
+    float m_JumpForce = 16.0f;
     bool m_IsGrounded = false;
 };

@@ -43,6 +43,10 @@ private:
     unsigned int m_QuadVAO = 0;
     unsigned int m_QuadVBO = 0;
 
+    unsigned int m_DebugCubeVAO = 0;
+    unsigned int m_DebugCubeVBO = 0;
+    void InitDebugCube();
+
     void RenderComposite(int screenHeight, int screenWidth);
 
     void DrawMesh(const SubMesh& mesh, unsigned int shaderID);

@@ -17,6 +17,7 @@ public:
         ResourceManager::LoadShader("../shaders/retro.vert", "../shaders/retro.frag", "retro");
         ResourceManager::LoadShader("../shaders/shadow.vert", "../shaders/shadow.frag", "shadow");
         ResourceManager::LoadShader("../shaders/screen.vert", "../shaders/screen.frag", "screen");
+        ResourceManager::LoadShader("../shaders/debug.vert", "../shaders/debug.frag", "debug");
 
         // Load Harry
         ResourceManager::LoadModel("../assets/skharrymesh.obj", "harry");
@@ -113,6 +114,11 @@ public:
 
             m_Camera.ProcessMouseMovement(xoffset, yoffset);
         }
+    }
+
+    void Render(Renderer &renderer, int screenWidth, int screenHeight) override {
+        renderer.RenderScene(m_Camera, m_Objects, screenWidth, screenHeight);
+        renderer.RenderDebug(m_Objects, m_Camera);
     }
 
 private:
