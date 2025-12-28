@@ -5,6 +5,7 @@
 #include <cmath> // For sin/cos
 
 #include "../engine/player_controller.hpp"
+#include "../engine/3p/jolt_impl.hpp"
 
 class Level1 : public Scene {
 public:
@@ -40,12 +41,54 @@ public:
         floorObj->transform.Position = glm::vec3(0.0f, 0.0f, 0.0f);
         floorObj->hasCollision = true;
 
+        // Create Physics Body for Floor
+        if (m_Physics) {
+            BodyInterface &body_interface = m_Physics->GetBodyInterface();
+            BoxShapeSettings floor_shape_settings(Vec3(50.0f, 1.0f, 50.0f)); // Half extents
+            floor_shape_settings.SetEmbedded();
+            ShapeSettings::ShapeResult floor_shape_result = floor_shape_settings.Create();
+            ShapeRefC floor_shape = floor_shape_result.Get();
+
+            // Floor is at y=0, but the box is 2 units high (half extent 1).
+            // If we want the top surface at 0, center should be at -1.
+            // The visual mesh goes from -1 to 0 in Y.
+            // So center of visual mesh is at -0.5.
+            // Wait, visual mesh: y from -1 to 0.
+            // Physics box: center at (0, -0.5, 0), half extent (50, 0.5, 50).
+            // Let's adjust.
+
+            BodyCreationSettings floor_settings(floor_shape, RVec3(0.0_r, -0.5_r, 0.0_r), Quat::sIdentity(), EMotionType::Static, Layers::NON_MOVING);
+            Body *floor = body_interface.CreateBody(floor_settings);
+            body_interface.AddBody(floor->GetID(), EActivation::DontActivate);
+
+            floorObj->physicsBodyID = floor->GetID().GetIndexAndSequenceNumber();
+        }
+
         // --- Harry Potter ---
         m_Harry = CreateObject<MeshObject>();
         m_Harry->modelResource = &ResourceManager::GetModel("harry");
         m_Harry->transform.Position = glm::vec3(0.0f, 100.0f, 0.0f);
         m_Harry->transform.Scale = glm::vec3(0.1f); // Adjust scale as needed
         m_Harry->transform.Rotation = glm::vec3(0.0f, 90.0f, 0.0f);
+
+        // Create Physics Body for Harry (Cylinder)
+        if (m_Physics) {
+            BodyInterface &body_interface = m_Physics->GetBodyInterface();
+
+            // Cylinder dimensions: Height 1.8m, Radius 0.3m
+            // Jolt CylinderShape takes (HalfHeight, Radius)
+            // Note: Jolt cylinders are aligned along the Y axis by default.
+            float halfHeight = 0.9f;
+            float radius = 0.3f;
+
+            BodyCreationSettings cylinder_settings(new CylinderShape(halfHeight, radius), RVec3(0.0_r, 10.0_r, 0.0_r), Quat::sIdentity(), EMotionType::Dynamic, Layers::MOVING);
+
+            // Lock rotation to prevent Harry from tipping over
+            cylinder_settings.mAllowedDOFs = EAllowedDOFs::TranslationX | EAllowedDOFs::TranslationY | EAllowedDOFs::TranslationZ | EAllowedDOFs::RotationY;
+
+            BodyID harry_id = body_interface.CreateAndAddBody(cylinder_settings, EActivation::Activate);
+            m_Harry->physicsBodyID = harry_id.GetIndexAndSequenceNumber();
+        }
 
         // --- Orbiting Light ---
         m_Light = CreateObject<PointLight>();
@@ -55,6 +98,9 @@ public:
 
         m_Controller = m_SceneArena.alloc<PlayerController>();
         new(m_Controller) PlayerController(m_Harry, &m_Camera);
+        if (m_Physics) {
+            m_Controller->SetPhysics(m_Physics);
+        }
 
         m_Camera.Pitch = -20.0f;
 
@@ -69,6 +115,25 @@ public:
     }
 
     void Update(float dt) override {
+        // Sync Physics to Visuals
+        if (m_Physics) {
+             BodyInterface &body_interface = m_Physics->GetBodyInterface();
+             for (auto* obj : m_Objects) {
+                 if (obj->physicsBodyID != 0xFFFFFFFF) {
+                     BodyID bodyID(obj->physicsBodyID);
+                     if (body_interface.IsActive(bodyID)) {
+                         RVec3 position = body_interface.GetCenterOfMassPosition(bodyID);
+                         Quat rotation = body_interface.GetRotation(bodyID);
+
+                         obj->transform.Position = glm::vec3(position.GetX(), position.GetY(), position.GetZ());
+                         // Convert Quat to Euler if needed, or store Quat in Transform.
+                         // For now, let's just update position as rotation handling might need more work in Transform class
+                         // obj->transform.Rotation = ...
+                     }
+                 }
+             }
+        }
+
         // Animate Light Orbit
         float time = (float)glfwGetTime();
         if (m_Light) {
@@ -122,13 +187,10 @@ public:
 
         renderer.RenderScene(m_Camera, m_Objects, screenWidth, screenHeight);
 
-        for (auto& obj : m_Objects) { // Assuming you have a list of objects
-            // Assuming your GameObject has a GetAABB() method
-            PhysicsDebugDrawer::DrawAABB(obj->collider, glm::vec3(0.0f, 1.0f, 0.0f));
+        // Draw Jolt Debug info
+        if (m_Physics) {
+            m_Physics->DrawDebug();
         }
-
-        // 3. Draw Player Collider (Red)
-        // PhysicsDebugDrawer::DrawCylinder(m_Controller, glm::vec3(1.0f, 0.0f, 0.0f));
 
         // 4. Flush to GPU
         glm::mat4 view = m_Camera.GetViewMatrix();

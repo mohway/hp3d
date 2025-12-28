@@ -21,6 +21,27 @@ void PhysicsDebugDrawer::Init() {
     glEnableVertexAttribArray(0);
 }
 
+void PhysicsDebugDrawer::DrawLine(const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& color) {
+    // Find or create a batch for this color
+    auto it = std::find_if(m_Batches.begin(), m_Batches.end(),
+        [&](const LineBatch& b) { return b.color == color; });
+
+    if (it == m_Batches.end()) {
+        m_Batches.push_back({color, {}});
+        it = m_Batches.end() - 1;
+    }
+
+    std::vector<float>& v = it->vertices;
+    v.push_back(p1.x); v.push_back(p1.y); v.push_back(p1.z);
+    v.push_back(p2.x); v.push_back(p2.y); v.push_back(p2.z);
+}
+
+void PhysicsDebugDrawer::DrawTriangle(const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3, const glm::vec3& color) {
+    DrawLine(p1, p2, color);
+    DrawLine(p2, p3, color);
+    DrawLine(p3, p1, color);
+}
+
 void PhysicsDebugDrawer::DrawAABB(const AABB& box, glm::vec3 color) {
     // Find or create a batch for this color
     auto it = std::find_if(m_Batches.begin(), m_Batches.end(), 

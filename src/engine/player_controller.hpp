@@ -3,6 +3,7 @@
 #include "../camera.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/gtx/vector_angle.hpp> // Needed for angle calculations
+#include "3p/jolt_impl.hpp"
 
 class PlayerController {
 public:
@@ -14,8 +15,17 @@ public:
         m_Player->collisionHeight = 1.8f;
     }
 
+    // Allow setting physics system
+    void SetPhysics(Jolt_Impl* physics) { m_Physics = physics; }
+
     void Update(GLFWwindow* window, float dt, const std::vector<GameObject*>& sceneObjects) {
         if (!m_Player || !m_Camera) return;
+
+        // If we have physics, we should use it for movement instead of manual integration
+        if (m_Physics && m_Player->physicsBodyID != 0xFFFFFFFF) {
+            UpdatePhysics(window, dt);
+            return;
+        }
 
         if (!m_IsGrounded) m_Velocity.y += m_Gravity * dt;
 
@@ -83,6 +93,68 @@ public:
     }
 
 private:
+    void UpdatePhysics(GLFWwindow* window, float dt) {
+        // 1. Get Input
+        float moveX = 0.0f;
+        float moveZ = 0.0f;
+
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) moveZ =  1.0f;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) moveZ = -1.0f;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) moveX = -1.0f;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) moveX =  1.0f;
+
+        // 2. Calculate Direction relative to Camera
+        glm::vec3 camForward = m_Camera->Front;
+        camForward.y = 0.0f;
+        camForward = glm::normalize(camForward);
+
+        glm::vec3 camRight = m_Camera->Right;
+        camRight.y = 0.0f;
+        camRight = glm::normalize(camRight);
+
+        glm::vec3 moveDir = (camForward * moveZ) + (camRight * moveX);
+        if (glm::length(moveDir) > 0.0f)
+            moveDir = glm::normalize(moveDir);
+
+        // Apply velocity to physics body
+        BodyInterface &body_interface = m_Physics->GetBodyInterface();
+        BodyID bodyID(m_Player->physicsBodyID);
+
+        // Get current velocity to preserve Y velocity (gravity)
+        Vec3 currentVel = body_interface.GetLinearVelocity(bodyID);
+
+        float targetVelX = moveDir.x * m_Speed;
+        float targetVelZ = moveDir.z * m_Speed;
+        float targetVelY = currentVel.GetY();
+
+        // Jump
+        // Note: Ground check with physics is more complex (raycast or contact listener).
+        // For now, simple check if Y velocity is near zero.
+        bool isGrounded = std::abs(currentVel.GetY()) < 0.1f;
+        if (isGrounded && glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+            targetVelY = m_JumpForce;
+        }
+
+        // Activate body if it's sleeping and we want to move
+        if (!body_interface.IsActive(bodyID) && (moveX != 0 || moveZ != 0 || targetVelY > 0.1f)) {
+             body_interface.ActivateBody(bodyID);
+        }
+
+        body_interface.SetLinearVelocity(bodyID, Vec3(targetVelX, targetVelY, targetVelZ));
+
+        // Rotate Player to face direction
+        if (glm::length(moveDir) > 0.1f) {
+            float targetAngle = glm::degrees(atan2(moveDir.x, moveDir.z));
+            targetAngle += 90.0f; // Correction for model orientation
+
+            float currentAngle = m_Player->transform.Rotation.y;
+            float angleDiff = targetAngle - currentAngle;
+            while (angleDiff > 180.0f)  angleDiff -= 360.0f;
+            while (angleDiff < -180.0f) angleDiff += 360.0f;
+            m_Player->transform.Rotation.y += angleDiff * 10.0f * dt;
+        }
+    }
+
     bool ResolveCollisions(const std::vector<GameObject*>& objects) {
         bool hit = false;
 
@@ -131,6 +203,7 @@ private:
 
     GameObject* m_Player;
     Camera* m_Camera;
+    Jolt_Impl* m_Physics = nullptr;
 
     float m_Speed = 12.0f;      // Units per second
     float m_TurnSpeed = 10.0f; // Speed of turning

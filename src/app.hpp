@@ -13,6 +13,7 @@
 #include "engine/resource_manager.hpp"
 #include "engine/renderer.hpp"
 #include "engine/scene.hpp"
+#include "engine/3p/jolt_impl.hpp"
 
 // class Renderer;
 // class Camera;
@@ -35,6 +36,9 @@ private:
     std::unique_ptr<Scene> m_CurrentScene;
     bool m_IsRunning;
     bool m_EditorActive = false;
+
+    // Physics
+    Jolt_Impl m_Physics;
 
     // ====== GLOBALS
 

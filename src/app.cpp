@@ -26,6 +26,7 @@ App::App(const std::string &title, int width, int height)
 App::~App() {
     ImGuiLayer::Shutdown();
     m_FrameArena.destroy();
+    m_Physics.Destroy();
 }
 
 void App::init() {
@@ -34,11 +35,15 @@ void App::init() {
     std::cout << "Initialized Frame Arena (1MB)" << std::endl;
 
     m_Renderer.Init();
-    
+
+    // Initialize Physics
+    m_Physics.Init();
+
     // Initialize ImGui
     ImGuiLayer::Init(m_Window->GetNativeWindow());
 
     m_CurrentScene = std::make_unique<Level1>();
+    m_CurrentScene->SetPhysics(&m_Physics);
     m_CurrentScene->Init();
 
     m_IsRunning = true;
@@ -67,6 +72,10 @@ void App::run() {
 
         // --- The Loop ---
         process_input(deltaTime);
+
+        // Physics Step
+        m_Physics.Step(deltaTime);
+
         m_CurrentScene->Update(deltaTime);
 
         int width, height;

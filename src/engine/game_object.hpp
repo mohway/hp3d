@@ -6,6 +6,9 @@
 #include "physics.hpp"
 #include "resource_manager.hpp"
 
+// Forward declaration for Jolt BodyID
+namespace JPH { class BodyID; }
+
 struct Transform {
     glm::vec3 Position = glm::vec3(0.0f);
     glm::vec3 Rotation = glm::vec3(0.0f);
@@ -53,6 +56,14 @@ struct GameObject {
     float collisionHeight = 0.0f;
     bool hasCollision = false;
     bool collisionDirty = false;
+
+    // Jolt Physics Body ID
+    // Using void* to avoid including Jolt headers everywhere, or we could include BodyID.h if we want type safety
+    // For now, let's just store the ID if we can, but BodyID is a struct.
+    // Let's use a simple uint32_t for the ID which matches Jolt's BodyID internal representation usually,
+    // but better to be safe.
+    // Actually, let's just add a generic pointer or ID holder.
+    unsigned int physicsBodyID = 0xFFFFFFFF; // JPH::BodyID::cInvalidBodyID is usually max uint
 
     GameObject(ObjectType t = ObjectType::Base) : type(t) {
         localBounds.min = glm::vec3(-0.5f);

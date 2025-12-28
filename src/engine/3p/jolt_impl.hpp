@@ -3,6 +3,7 @@
 #include <Jolt/Jolt.h>
 
 // Jolt includes
+#include <cstdarg>
 #include <Jolt/RegisterTypes.h>
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/TempAllocator.h>
@@ -11,8 +12,10 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/CylinderShape.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
+#include <Jolt/Renderer/DebugRenderer.h>
 
 #include <iostream>
 
@@ -146,7 +149,7 @@ public:
 	// See: ContactListener
 	virtual JPH::ValidateResult	OnContactValidate(const JPH::Body &inBody1, const JPH::Body &inBody2, JPH::RVec3Arg inBaseOffset, const JPH::CollideShapeResult &inCollisionResult) override
 	{
-		std::cout << "Contact validate callback" << std::endl;
+		// std::cout << "Contact validate callback" << std::endl;
 
 		// Allows you to ignore a contact before it is created (using layers to not make objects collide is cheaper!)
 		return JPH::ValidateResult::AcceptAllContactsForThisBodyPair;
@@ -154,17 +157,17 @@ public:
 
 	virtual void			OnContactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings) override
 	{
-		std::cout << "A contact was added" << std::endl;
+		// std::cout << "A contact was added" << std::endl;
 	}
 
 	virtual void			OnContactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings) override
 	{
-		std::cout << "A contact was persisted" << std::endl;
+		// std::cout << "A contact was persisted" << std::endl;
 	}
 
 	virtual void			OnContactRemoved(const JPH::SubShapeIDPair &inSubShapePair) override
 	{
-		std::cout << "A contact was removed" << std::endl;
+		// std::cout << "A contact was removed" << std::endl;
 	}
 };
 
@@ -174,12 +177,12 @@ class MyBodyActivationListener : public JPH::BodyActivationListener
 public:
 	virtual void		OnBodyActivated(const JPH::BodyID &inBodyID, JPH::uint64 inBodyUserData) override
 	{
-		std::cout << "A body got activated" << std::endl;
+		// std::cout << "A body got activated" << std::endl;
 	}
 
 	virtual void		OnBodyDeactivated(const JPH::BodyID &inBodyID, JPH::uint64 inBodyUserData) override
 	{
-		std::cout << "A body went to sleep" << std::endl;
+		// std::cout << "A body went to sleep" << std::endl;
 	}
 };
 
@@ -199,6 +202,8 @@ struct JoltBootstrap {
 	}
 };
 
+class JoltDebugRendererImpl;
+
 class Jolt_Impl {
 public:
 	Jolt_Impl();
@@ -206,11 +211,26 @@ public:
     void Init();
 	void Destroy();
 	void Step(float dt);
+    void DrawDebug();
+
+    PhysicsSystem& GetPhysicsSystem() { return m_physics_system; }
+    BodyInterface& GetBodyInterface() { return m_physics_system.GetBodyInterface(); }
 
 private:
 	JoltBootstrap m_bootstrap;
 	TempAllocatorImpl m_temp_allocator_impl;
 	JobSystemThreadPool m_job_system;
+
+    // These must persist as long as PhysicsSystem exists
+    BPLayerInterfaceImpl m_broad_phase_layer_interface;
+    ObjectVsBroadPhaseLayerFilterImpl m_object_vs_broadphase_layer_filter;
+    ObjectLayerPairFilterImpl m_object_vs_object_layer_filter;
+
+    MyBodyActivationListener m_body_activation_listener;
+    MyContactListener m_contact_listener;
+
 	PhysicsSystem m_physics_system;
+
+    JoltDebugRendererImpl* m_debug_renderer = nullptr;
 
 };

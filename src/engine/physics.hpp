@@ -107,6 +107,8 @@ public:
     static void Init();
     static void DrawAABB(const AABB& box, glm::vec3 color);
     static void DrawCylinder(const Cylinder& cyl, glm::vec3 color);
+    static void DrawLine(const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& color);
+    static void DrawTriangle(const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3, const glm::vec3& color);
 
     // Call this at the very end of your Level Render function
     static void Render(const glm::mat4& view, const glm::mat4& projection);
