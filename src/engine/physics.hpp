@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <algorithm>
 #include <vector>
+#include <cmath>
 
 struct AABB {
     glm::vec3 min = glm::vec3(0.0f);

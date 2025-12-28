@@ -38,6 +38,7 @@ public:
         floorObj->UpdateSelfAndChild();
         floorObj->modelResource = &ResourceManager::GetModel("floor_proc");
         floorObj->transform.Position = glm::vec3(0.0f, 0.0f, 0.0f);
+        floorObj->hasCollision = true;
 
         // --- Harry Potter ---
         m_Harry = CreateObject<MeshObject>();

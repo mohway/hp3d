@@ -48,15 +48,17 @@ struct GameObject {
     virtual ~GameObject() = default;
 
     void UpdateSelfAndChild() {
-        glm::vec3 center = transform.Position;
-        glm::vec3 halfSize = (localBounds.max - localBounds.min) * 0.5f;
+        // Correctly transform AABB with scale and position, preserving local offset
+        glm::vec3 min = localBounds.min * transform.Scale;
+        glm::vec3 max = localBounds.max * transform.Scale;
 
-        halfSize.x *= transform.Scale.x;
-        halfSize.y *= transform.Scale.y;
-        halfSize.z *= transform.Scale.z;
+        // Handle negative scale if necessary (swap min/max components)
+        if (min.x > max.x) std::swap(min.x, max.x);
+        if (min.y > max.y) std::swap(min.y, max.y);
+        if (min.z > max.z) std::swap(min.z, max.z);
 
-        collider.min = center - halfSize;
-        collider.max = center + halfSize;
+        collider.min = transform.Position + min;
+        collider.max = transform.Position + max;
     }
 };
 
