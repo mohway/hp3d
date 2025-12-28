@@ -8,6 +8,8 @@
 
 #include "game/level1.hpp"
 #include "engine/imgui_layer.hpp"
+#include "engine/imgui/asset_browser.hpp"
+#include "engine/imgui/scene_hierarchy.hpp"
 #include "imgui.h"
 
 App::App(const std::string &title, int width, int height)
@@ -49,6 +51,7 @@ void App::init() {
 void App::run() {
     float lastFrame = 0.0f;
     bool show_asset_window = true; // Default to open for now
+    bool show_scene_hierarchy = true; // Default to open for now
 
     while (!m_Window->ShouldClose() && m_IsRunning) {
         // --- Time Management ---
@@ -78,6 +81,7 @@ void App::run() {
             if (ImGui::BeginMainMenuBar()) {
                 if (ImGui::BeginMenu("View")) {
                     ImGui::MenuItem("Asset Browser", NULL, &show_asset_window);
+                    ImGui::MenuItem("Scene Hierarchy", NULL, &show_scene_hierarchy);
                     ImGui::EndMenu();
                 }
                 ImGui::EndMainMenuBar();
@@ -93,7 +97,12 @@ void App::run() {
             
             // Asset Browser
             if (show_asset_window) {
-                ImGuiLayer::ShowAssetBrowser(&show_asset_window);
+                ImGuiWindows::ShowAssetBrowser(&show_asset_window);
+            }
+
+            // Scene Hierarchy
+            if (show_scene_hierarchy) {
+                ImGuiWindows::ShowSceneHierarchy(&show_scene_hierarchy, m_CurrentScene->GetObjects());
             }
             
             ImGuiLayer::End();

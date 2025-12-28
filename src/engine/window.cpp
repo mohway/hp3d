@@ -71,6 +71,9 @@ void Window::Init() {
     glfwMakeContextCurrent(m_Window);
     glfwSetFramebufferSizeCallback(m_Window, framebuffer_size_callback);
 
+    // Disable VSync to measure raw performance
+    glfwSwapInterval(0);
+
     // 3. Init GLAD (Context is now valid)
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;

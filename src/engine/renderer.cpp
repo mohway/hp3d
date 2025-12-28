@@ -44,15 +44,16 @@ void Renderer::Shutdown() {
 }
 
 void Renderer::InitFramebuffers() {
-    // --- 1. Retro FBO (320x240) ---
-    glGenFramebuffers(1, &m_FBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
+    glGenFramebuffers(1, &m_FBO); // Generate a framebuffer ID for use
+    glBindFramebuffer(GL_FRAMEBUFFER, m_FBO); // SELECT the framebuffer ID, now the operations apply to this framebuffer
 
-    glGenTextures(1, &m_TexColorBuffer);
-    glBindTexture(GL_TEXTURE_2D, m_TexColorBuffer);
+    glGenTextures(1, &m_TexColorBuffer); // Gen texid for rendering output
+    glBindTexture(GL_TEXTURE_2D, m_TexColorBuffer); // Select texid for ops
+    // tex params
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, INTERNAL_WIDTH, INTERNAL_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // attach the tex to the framebuffer
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_TexColorBuffer, 0);
 
     glGenRenderbuffers(1, &m_RBO);
@@ -133,6 +134,8 @@ void Renderer::RenderScene(const Camera& camera, const std::vector<GameObject*>&
 }
 // NOTE: Fixed overload signature here
 void Renderer::RenderShadowMap(const glm::mat4& lightSpaceMatrix, const std::vector<GameObject*>& objects) {
+    // Ideally, the FBO binding and Viewport setup happens OUTSIDE this function
+    // so this function simply "Draws the scene to whatever is currently bound".
     glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
     glBindFramebuffer(GL_FRAMEBUFFER, m_ShadowMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);

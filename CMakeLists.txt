@@ -1,4 +1,8 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.5)
+
+# Fix for dependencies with old CMake requirements (like GLM 0.9.9.8)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
 project(hp3d)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -67,6 +71,7 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui_widgets.cpp
     ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+        src/engine/imgui/scene_hierarchy.cpp
 )
 
 # --- 2. Source Files ---
@@ -97,7 +102,11 @@ add_executable(hp3d ${SOURCES} ${IMGUI_SOURCES}
         src/engine/physics.cpp
         src/engine/physics.hpp
         src/engine/imgui_layer.cpp
-        src/engine/imgui_layer.hpp)
+        src/engine/imgui_layer.hpp
+        src/engine/imgui/asset_browser.cpp
+        src/engine/imgui/asset_browser.hpp
+        src/engine/imgui/scene_hierarchy.cpp
+        src/engine/imgui/scene_hierarchy.hpp)
 
 # --- 4. Linking ---
 # Note: OpenGL::GL usually handles includes automatically, but keeping explicit includes is fine.

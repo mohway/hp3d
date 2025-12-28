@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <memory>
 #include <string>
+#include <vector>
 #include <glm/glm.hpp>
 
 #include "engine/window.hpp"

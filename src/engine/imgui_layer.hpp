@@ -1,6 +1,9 @@
 #pragma once
 
+#include <vector>
+
 struct GLFWwindow;
+struct GameObject;
 
 class ImGuiLayer {
 public:
@@ -9,7 +12,4 @@ public:
     
     static void Begin();
     static void End();
-
-    // New function for the Asset Browser
-    static void ShowAssetBrowser(bool* p_open);
 };

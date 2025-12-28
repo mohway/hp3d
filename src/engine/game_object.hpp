@@ -30,6 +30,18 @@ enum class ObjectType {
     COUNT
 };
 
+inline const char* ObjectTypeToString(const ObjectType object_type)
+{
+    switch (object_type)
+    {
+        case ObjectType::Base:   return "Base";
+        case ObjectType::Mesh:   return "Mesh";
+        case ObjectType::Light:  return "Light";
+        case ObjectType::Plane:  return "Plane";
+        default:      return "[Unknown OS_type]";
+    }
+}
+
 struct GameObject {
     Transform transform;
     ObjectType type = ObjectType::Base;

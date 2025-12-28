@@ -20,6 +20,8 @@ public:
         renderer.RenderScene(m_Camera, m_Objects, screenWidth, screenHeight);
     }
 
+    std::vector<GameObject*>& GetObjects() { return m_Objects; }
+
     Camera m_Camera { glm::vec3(0.0f, 1.0f, 3.0f) };
 
 protected:
