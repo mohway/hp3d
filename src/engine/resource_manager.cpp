@@ -4,6 +4,8 @@
 #include <sstream>
 #include <fstream>
 #include <filesystem>
+#include <algorithm>
+#include <limits>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -366,6 +368,18 @@ Model ResourceManager::loadModelFromFile(const char* file) {
             continue;
         }
 
+        glm::vec3 boundsMin(std::numeric_limits<float>::max());
+        glm::vec3 boundsMax(std::numeric_limits<float>::lowest());
+        for (size_t i = 0; i + 2 < vertices.size(); i += 8) {
+            glm::vec3 pos(vertices[i], vertices[i + 1], vertices[i + 2]);
+            boundsMin.x = std::min(boundsMin.x, pos.x);
+            boundsMin.y = std::min(boundsMin.y, pos.y);
+            boundsMin.z = std::min(boundsMin.z, pos.z);
+            boundsMax.x = std::max(boundsMax.x, pos.x);
+            boundsMax.y = std::max(boundsMax.y, pos.y);
+            boundsMax.z = std::max(boundsMax.z, pos.z);
+        }
+
         SubMesh sm;
         glGenVertexArrays(1, &sm.vao);
         glGenBuffers(1, &sm.vbo);
@@ -386,6 +400,8 @@ Model ResourceManager::loadModelFromFile(const char* file) {
 
         sm.vertexCount = vertices.size() / 8;
         sm.textureID = getMaterialTexture(materialId);
+        sm.boundsMin = boundsMin;
+        sm.boundsMax = boundsMax;
 
         model.push_back(sm);
     }

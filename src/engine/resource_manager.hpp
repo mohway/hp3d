@@ -4,6 +4,7 @@
 #include <string>
 #include <glad/glad.h>
 #include <vector>
+#include <glm/glm.hpp>
 
 // Forward decls
 struct SubMesh {
@@ -11,6 +12,8 @@ struct SubMesh {
     unsigned int vbo;
     unsigned int textureID;
     int vertexCount;
+    glm::vec3 boundsMin{0.0f};
+    glm::vec3 boundsMax{0.0f};
 };
 
 // A "Model" is a collection of SubMeshes
