@@ -3,6 +3,7 @@
 #include <map>
 #include <string>
 #include <glad/glad.h>
+#include <vector>
 
 // Forward decls
 struct SubMesh {
@@ -22,6 +23,7 @@ struct Texture2D {
 
 struct ShaderProgram {
     unsigned int ID;
+    std::map<std::string, int> uniformCache; // Cache for uniform locations
     void use() { glUseProgram(ID); }
 };
 
@@ -36,6 +38,9 @@ public:
 
     static unsigned int LoadShader(const char *vShaderFile, const char *fShaderFile, const std::string &name);
     static unsigned int GetShader(const std::string& name);
+    
+    // New helper to get cached uniform location
+    static int GetUniformLocation(const std::string& shaderName, const std::string& uniformName);
 
     static Model& LoadModel(const char* file, std::string name);
     static Model& GetModel(std::string name);

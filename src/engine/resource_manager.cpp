@@ -46,6 +46,22 @@ unsigned int ResourceManager::GetShader(const std::string& name) {
     return Shaders[name].ID;
 }
 
+int ResourceManager::GetUniformLocation(const std::string& shaderName, const std::string& uniformName) {
+    if (!Shaders.contains(shaderName)) {
+        std::cout << "Warning: Shader " << shaderName << " not found when getting uniform " << uniformName << std::endl;
+        return -1;
+    }
+
+    ShaderProgram& shader = Shaders[shaderName];
+    if (shader.uniformCache.contains(uniformName)) {
+        return shader.uniformCache[uniformName];
+    }
+
+    int location = glGetUniformLocation(shader.ID, uniformName.c_str());
+    shader.uniformCache[uniformName] = location;
+    return location;
+}
+
 void ResourceManager::Clear() {
     for (const auto& iter : Textures) glDeleteTextures(1, &iter.second.ID);
     for (const auto& iter : Shaders) glDeleteProgram(iter.second.ID);
@@ -72,6 +88,10 @@ Texture2D ResourceManager::loadTextureFromFile(const char *file) {
         else if (nrComponents == 4) format = GL_RGBA;
 
         glBindTexture(GL_TEXTURE_2D, textureID);
+        
+        // Fix alignment for odd-width textures
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        
         glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
 

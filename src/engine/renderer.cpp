@@ -141,12 +141,12 @@ void Renderer::RenderShadowMap(const glm::mat4& lightSpaceMatrix, const std::vec
 
     unsigned int shadowShader = ResourceManager::GetShader("shadow");
     glUseProgram(shadowShader);
-    glUniformMatrix4fv(glGetUniformLocation(shadowShader, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+    glUniformMatrix4fv(ResourceManager::GetUniformLocation("shadow", "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
     for (const auto& obj : objects) {
         if (!obj->visible || obj->type == ObjectType::Light) continue;
 
-        glUniformMatrix4fv(glGetUniformLocation(shadowShader, "model"), 1, GL_FALSE, glm::value_ptr(obj->transform.GetMatrix()));
+        glUniformMatrix4fv(ResourceManager::GetUniformLocation("shadow", "model"), 1, GL_FALSE, glm::value_ptr(obj->transform.GetMatrix()));
 
         if (obj->type == ObjectType::Mesh) {
             auto* mesh_object = dynamic_cast<MeshObject*>(obj);
@@ -179,29 +179,29 @@ void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, c
     glUseProgram(program);
 
     // Light & Shadow Uniforms
-    glUniformMatrix4fv(glGetUniformLocation(program, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
-    glUniform3f(glGetUniformLocation(program, "u_LightPos"), lightPos.x, lightPos.y, lightPos.z);
-    glUniform3f(glGetUniformLocation(program, "u_LightColor"), 1.0f, 0.8f, 0.6f);
-    glUniform1f(glGetUniformLocation(program, "u_LightRange"), 50.0f);
-    glUniform3f(glGetUniformLocation(program, "u_AmbientColor"), 0.2f, 0.2f, 0.3f);
+    glUniformMatrix4fv(ResourceManager::GetUniformLocation("retro", "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+    glUniform3f(ResourceManager::GetUniformLocation("retro", "u_LightPos"), lightPos.x, lightPos.y, lightPos.z);
+    glUniform3f(ResourceManager::GetUniformLocation("retro", "u_LightColor"), 1.0f, 0.8f, 0.6f);
+    glUniform1f(ResourceManager::GetUniformLocation("retro", "u_LightRange"), 50.0f);
+    glUniform3f(ResourceManager::GetUniformLocation("retro", "u_AmbientColor"), 0.2f, 0.2f, 0.3f);
 
     // Camera Uniforms
     float aspectRatio = (float)INTERNAL_WIDTH / (float)INTERNAL_HEIGHT;
     glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), aspectRatio, 0.1f, 1000.0f);
     glm::mat4 view = camera.GetViewMatrix();
-    glUniformMatrix4fv(glGetUniformLocation(program, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(glGetUniformLocation(program, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    glUniform2f(glGetUniformLocation(program, "u_SnapResolution"), INTERNAL_WIDTH / 2.0f, INTERNAL_HEIGHT / 2.0f);
+    glUniformMatrix4fv(ResourceManager::GetUniformLocation("retro", "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(ResourceManager::GetUniformLocation("retro", "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glUniform2f(ResourceManager::GetUniformLocation("retro", "u_SnapResolution"), INTERNAL_WIDTH / 2.0f, INTERNAL_HEIGHT / 2.0f);
 
     // Bind Shadow Map
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, m_ShadowMapTexture);
-    glUniform1i(glGetUniformLocation(program, "u_ShadowMap"), 1);
+    glUniform1i(ResourceManager::GetUniformLocation("retro", "u_ShadowMap"), 1);
 
    for (auto* obj : objects) {
        if (!obj->visible) continue;
 
-       glUniformMatrix4fv(glGetUniformLocation(program, "model"), 1, GL_FALSE, glm::value_ptr(obj->transform.GetMatrix()));
+       glUniformMatrix4fv(ResourceManager::GetUniformLocation("retro", "model"), 1, GL_FALSE, glm::value_ptr(obj->transform.GetMatrix()));
 
        switch (obj->type) {
            case ObjectType::Mesh: {
@@ -211,7 +211,7 @@ void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, c
                    for (const auto& submesh : *mesh_object->modelResource) {
                        glActiveTexture(GL_TEXTURE0);
                        glBindTexture(GL_TEXTURE_2D, submesh.textureID);
-                       glUniform1i(glGetUniformLocation(program, "u_Texture"), 0);
+                       glUniform1i(ResourceManager::GetUniformLocation("retro", "u_Texture"), 0);
                        DrawMesh(submesh, program);
                    }
                }
@@ -222,7 +222,7 @@ void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, c
                auto* plane_object = dynamic_cast<PlaneObject*>(obj);
                glActiveTexture(GL_TEXTURE0);
                glBindTexture(GL_TEXTURE_2D, plane_object->textureID);
-               glUniform1i(glGetUniformLocation(program, "u_Texture"), 0);
+               glUniform1i(ResourceManager::GetUniformLocation("retro", "u_Texture"), 0);
 
                glBindVertexArray(m_QuadVAO);
                glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -318,9 +318,9 @@ void Renderer::RenderDebug(const std::vector<GameObject*>& objects, const Camera
     glm::mat4 view = camera.GetViewMatrix();
     glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)INTERNAL_WIDTH/INTERNAL_HEIGHT, 0.1f, 1000.0f);
 
-    glUniformMatrix4fv(glGetUniformLocation(shader, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    glUniform3f(glGetUniformLocation(shader, "color"), 0.0f, 1.0f, 0.0f); // Green
+    glUniformMatrix4fv(ResourceManager::GetUniformLocation("debug", "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(ResourceManager::GetUniformLocation("debug", "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glUniform3f(ResourceManager::GetUniformLocation("debug", "color"), 0.0f, 1.0f, 0.0f); // Green
 
     glBindVertexArray(m_DebugCubeVAO);
 
@@ -339,7 +339,7 @@ void Renderer::RenderDebug(const std::vector<GameObject*>& objects, const Camera
         model = glm::translate(model, center);
         model = glm::scale(model, size);
 
-        glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(ResourceManager::GetUniformLocation("debug", "model"), 1, GL_FALSE, glm::value_ptr(model));
         glDrawArrays(GL_LINES, 0, 24);
     }
     glBindVertexArray(0);
