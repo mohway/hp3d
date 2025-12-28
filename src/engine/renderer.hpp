@@ -22,6 +22,8 @@ public:
                      int screenWidth,
                      int screenHeight);
 
+    void RenderDebug(const std::vector<GameObject*>& objects, const Camera& camera);
+
 private:
     // --- Initialization Helpers ---
     void InitFramebuffers();

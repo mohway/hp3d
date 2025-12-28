@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+#include "physics.hpp"
 #include "resource_manager.hpp"
 
 struct Transform {
@@ -33,8 +35,29 @@ struct GameObject {
     ObjectType type = ObjectType::Base;
     bool visible = true;
 
-    GameObject(ObjectType t = ObjectType::Base) : type(t) {}
+    AABB collider;
+    AABB localBounds;
+    float collisionRadius = 0.0f;
+    float collisionHeight = 0.0f;
+    bool hasCollision = false;
+
+    GameObject(ObjectType t = ObjectType::Base) : type(t) {
+        localBounds.min = glm::vec3(-0.5f);
+        localBounds.max = glm::vec3(0.5f);
+    }
     virtual ~GameObject() = default;
+
+    void UpdateSelfAndChild() {
+        glm::vec3 center = transform.Position;
+        glm::vec3 halfSize = (localBounds.max - localBounds.min) * 0.5f;
+
+        halfSize.x *= transform.Scale.x;
+        halfSize.y *= transform.Scale.y;
+        halfSize.z *= transform.Scale.z;
+
+        collider.min = center - halfSize;
+        collider.max = center + halfSize;
+    }
 };
 
 struct MeshObject : public GameObject {

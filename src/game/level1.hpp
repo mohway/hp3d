@@ -32,6 +32,9 @@ public:
 
         // --- The Floor ---
         auto* floorObj = CreateObject<MeshObject>();
+        floorObj->localBounds.min = glm::vec3(-50, -1, -50);
+        floorObj->localBounds.max = glm::vec3( 50,  0,  50);
+        floorObj->UpdateSelfAndChild();
         floorObj->modelResource = &ResourceManager::GetModel("floor_proc");
         floorObj->transform.Position = glm::vec3(0.0f, 0.0f, 0.0f);
 
@@ -92,7 +95,7 @@ public:
         }
 
         if (m_Controller)
-            m_Controller->Update(window, dt);
+            m_Controller->Update(window, dt, m_Objects);
 
         // 2. Mouse Look (Rotates Camera)
         // We handle this here because we need the raw mouse data
