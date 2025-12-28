@@ -35,6 +35,7 @@ public:
 
     static unsigned int LoadTexture(const char* file, const std::string& name);
     static unsigned int GetTexture(const std::string& name);
+    static void DeleteTexture(const std::string& name);
 
     static unsigned int LoadShader(const char *vShaderFile, const char *fShaderFile, const std::string &name);
     static unsigned int GetShader(const std::string& name);

@@ -48,11 +48,32 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tinyobjloader)
 
+# ImGui
+FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui
+        GIT_TAG v1.90.4-docking
+)
+FetchContent_MakeAvailable(imgui)
+
+# Define ImGui sources manually since it doesn't have a CMakeLists.txt by default usually, 
+# or we want specific backends.
+set(IMGUI_DIR ${imgui_SOURCE_DIR})
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
 # --- 2. Source Files ---
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.c")
 
 # --- 3. Executable ---
-add_executable(hp3d ${SOURCES}
+add_executable(hp3d ${SOURCES} ${IMGUI_SOURCES}
         src/app.cpp
         src/app.hpp
         src/arena.cpp
@@ -74,12 +95,16 @@ add_executable(hp3d ${SOURCES}
         src/engine/player_controller.cpp
         src/engine/player_controller.hpp
         src/engine/physics.cpp
-        src/engine/physics.hpp)
+        src/engine/physics.hpp
+        src/engine/imgui_layer.cpp
+        src/engine/imgui_layer.hpp)
 
 # --- 4. Linking ---
 # Note: OpenGL::GL usually handles includes automatically, but keeping explicit includes is fine.
 target_include_directories(hp3d PUBLIC ${OPENGL_INCLUDE_DIR})
 target_include_directories(hp3d PUBLIC ${stb_SOURCE_DIR} ${tinyobjloader_SOURCE_DIR})
+target_include_directories(hp3d PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
+
 target_link_libraries(hp3d PRIVATE glfw glad glm OpenGL::GL)
 
 # Copy shaders to build directory so the executable can find them

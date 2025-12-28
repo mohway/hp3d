@@ -33,6 +33,7 @@ private:
     Renderer m_Renderer;
     std::unique_ptr<Scene> m_CurrentScene;
     bool m_IsRunning;
+    bool m_EditorActive = false;
 
     // ====== GLOBALS
 

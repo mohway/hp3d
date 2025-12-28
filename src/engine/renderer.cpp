@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include <iostream>
+#include <cmath>
 #include <glm/gtc/type_ptr.hpp>
 #include <GLFW/glfw3.h> // For glfwGetTime
 
@@ -239,8 +240,11 @@ void Renderer::RenderGeometry(const Camera& camera, const glm::vec3& lightPos, c
 
 void Renderer::RenderComposite(int screenHeight, int screenWidth) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // Back to screen
-    glViewport(0, 0, screenWidth, screenHeight);
+    const int screenW = screenWidth;
+    const int screenH = screenHeight;
+    glViewport(0, 0, screenW, screenH);
 
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glDisable(GL_DEPTH_TEST); 
@@ -248,6 +252,23 @@ void Renderer::RenderComposite(int screenHeight, int screenWidth) {
     unsigned int screenShader = ResourceManager::GetShader("screen");
     if(screenShader == 0) std::cout << "ERROR: Screen shader not found!" << std::endl;
     glUseProgram(screenShader);
+
+    float targetAspect = static_cast<float>(INTERNAL_WIDTH) / static_cast<float>(INTERNAL_HEIGHT);
+    float screenAspect = static_cast<float>(screenW) / static_cast<float>(screenH);
+    int viewportW = screenW;
+    int viewportH = screenH;
+    int viewportX = 0;
+    int viewportY = 0;
+
+    if (screenAspect > targetAspect) {
+        viewportW = static_cast<int>(std::round(screenH * targetAspect));
+        viewportX = (screenW - viewportW) / 2;
+    } else if (screenAspect < targetAspect) {
+        viewportH = static_cast<int>(std::round(screenW / targetAspect));
+        viewportY = (screenH - viewportH) / 2;
+    }
+
+    glViewport(viewportX, viewportY, viewportW, viewportH);
 
     glBindVertexArray(m_ScreenVAO);
     glActiveTexture(GL_TEXTURE0);

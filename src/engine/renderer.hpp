@@ -23,6 +23,7 @@ public:
                      int screenHeight);
 
     void RenderDebug(const std::vector<GameObject*>& objects, const Camera& camera);
+    float GetInternalAspect() const { return static_cast<float>(INTERNAL_WIDTH) / static_cast<float>(INTERNAL_HEIGHT); }
 
 private:
     // --- Initialization Helpers ---

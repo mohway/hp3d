@@ -10,8 +10,8 @@ void error_callback(int error, const char* description) {
     std::cerr << "GLFW Error " << error << ": " << description << std::endl;
 }
 
-Window::Window(const std::string& title, int width, int height)
-    : m_Title(title), m_Width(width), m_Height(height), m_Window(nullptr) {
+Window::Window(const std::string& title, int width, int height, bool fullscreen)
+    : m_Title(title), m_Width(width), m_Height(height), m_Fullscreen(fullscreen), m_Window(nullptr) {
     Init();
 }
 
@@ -36,11 +36,36 @@ void Window::Init() {
 #endif
 
     // 2. Create Window
-    m_Window = glfwCreateWindow(m_Width, m_Height, m_Title.c_str(), NULL, NULL);
+    GLFWmonitor* monitor = nullptr;
+    if (m_Fullscreen) {
+        monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        m_Width = mode->width;
+        m_Height = mode->height;
+        glfwWindowHint(GLFW_RED_BITS, mode->redBits);
+        glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
+        glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
+        glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        monitor = nullptr; // Borderless windowed fullscreen (not exclusive fullscreen)
+    }
+
+    m_Window = glfwCreateWindow(m_Width, m_Height, m_Title.c_str(), monitor, NULL);
     if (m_Window == NULL) {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return;
+    }
+
+    if (m_Fullscreen) {
+        GLFWmonitor* primary = glfwGetPrimaryMonitor();
+        int xpos = 0;
+        int ypos = 0;
+        if (primary) {
+            glfwGetMonitorPos(primary, &xpos, &ypos);
+        }
+        glfwSetWindowPos(m_Window, xpos, ypos);
     }
 
     glfwMakeContextCurrent(m_Window);

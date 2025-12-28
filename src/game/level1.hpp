@@ -132,7 +132,7 @@ public:
 
         // 4. Flush to GPU
         glm::mat4 view = m_Camera.GetViewMatrix();
-        glm::mat4 proj = m_Camera.GetProjectionMatrix((float)screenWidth / screenHeight);
+        glm::mat4 proj = m_Camera.GetProjectionMatrix(renderer.GetInternalAspect());
 
         // Make sure to disable depth test if you want to see lines *through* walls
         glDisable(GL_DEPTH_TEST);

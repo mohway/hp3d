@@ -7,7 +7,7 @@
 
 class Window {
 public:
-    Window(const std::string& title, int width, int height);
+    Window(const std::string& title, int width, int height, bool fullscreen = false);
     ~Window();
 
     // The main loop checks this
@@ -29,6 +29,7 @@ private:
     int m_Width;
     int m_Height;
     std::string m_Title;
+    bool m_Fullscreen;
 
     void Init();
     void Shutdown();
