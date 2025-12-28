@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <algorithm>
+#include <vector>
 
 struct AABB {
     glm::vec3 min = glm::vec3(0.0f);
@@ -57,3 +58,23 @@ inline bool CheckCylinderAABB(const Cylinder& cyl, const AABB& box, glm::vec3& r
     }
     return false;
 }
+
+class PhysicsDebugDrawer {
+public:
+    static void Init();
+    static void DrawAABB(const AABB& box, glm::vec3 color);
+    static void DrawCylinder(const Cylinder& cyl, glm::vec3 color);
+
+    // Call this at the very end of your Level Render function
+    static void Render(const glm::mat4& view, const glm::mat4& projection);
+
+private:
+    // We store lines in batches based on color to minimize draw calls
+    struct LineBatch {
+        glm::vec3 color;
+        std::vector<float> vertices; // x,y,z, x,y,z...
+    };
+
+    static std::vector<LineBatch> m_Batches;
+    static unsigned int m_VAO, m_VBO;
+};

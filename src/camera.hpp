@@ -47,6 +47,10 @@ public:
         return glm::lookAt(Position, Position + Front, Up);
     }
 
+    glm::mat4 GetProjectionMatrix(float aspect) const {
+        return glm::perspective(glm::radians(Zoom), aspect, 0.1f, 100.0f);
+    }
+
     // Processes input received from any keyboard-like input system
     void ProcessKeyboard(int direction, float deltaTime) {
         float velocity = MovementSpeed * deltaTime;

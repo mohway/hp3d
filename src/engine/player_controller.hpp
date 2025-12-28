@@ -62,11 +62,11 @@ public:
             if (const bool hitSomething = ResolveCollisions(sceneObjects); !hitSomething) break;
         }
 
-        if (m_Player->transform.Position.y < 0.0f) {
+        /*if (m_Player->transform.Position.y < 0.0f) {
             m_Player->transform.Position.y = 0.0f;
             m_Velocity.y = 0.0f;
             m_IsGrounded = true;
-        }
+        }*/
 
         // 4. Rotate Player to face direction
         // Calculate the angle in degrees

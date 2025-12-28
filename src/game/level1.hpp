@@ -42,7 +42,7 @@ public:
         // --- Harry Potter ---
         m_Harry = CreateObject<MeshObject>();
         m_Harry->modelResource = &ResourceManager::GetModel("harry");
-        m_Harry->transform.Position = glm::vec3(0.0f, 0.0f, 0.0f);
+        m_Harry->transform.Position = glm::vec3(0.0f, 100.0f, 0.0f);
         m_Harry->transform.Scale = glm::vec3(0.1f); // Adjust scale as needed
         m_Harry->transform.Rotation = glm::vec3(0.0f, 90.0f, 0.0f);
 
@@ -117,8 +117,26 @@ public:
     }
 
     void Render(Renderer &renderer, int screenWidth, int screenHeight) override {
+        PhysicsDebugDrawer::Init();
+
         renderer.RenderScene(m_Camera, m_Objects, screenWidth, screenHeight);
-        renderer.RenderDebug(m_Objects, m_Camera);
+
+        for (auto& obj : m_Objects) { // Assuming you have a list of objects
+            // Assuming your GameObject has a GetAABB() method
+            PhysicsDebugDrawer::DrawAABB(obj->collider, glm::vec3(0.0f, 1.0f, 0.0f));
+        }
+
+        // 3. Draw Player Collider (Red)
+        // PhysicsDebugDrawer::DrawCylinder(m_Controller, glm::vec3(1.0f, 0.0f, 0.0f));
+
+        // 4. Flush to GPU
+        glm::mat4 view = m_Camera.GetViewMatrix();
+        glm::mat4 proj = m_Camera.GetProjectionMatrix((float)screenWidth / screenHeight);
+
+        // Make sure to disable depth test if you want to see lines *through* walls
+        glDisable(GL_DEPTH_TEST);
+        PhysicsDebugDrawer::Render(view, proj);
+        glEnable(GL_DEPTH_TEST);
     }
 
 private:
