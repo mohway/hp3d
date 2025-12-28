@@ -31,32 +31,74 @@ struct Cylinder {
 };
 
 inline bool CheckCylinderAABB(const Cylinder& cyl, const AABB& box, glm::vec3& resolution) {
+    // 1. Early AABB Rejection (Optimization)
+    if (cyl.position.x - cyl.radius > box.max.x || cyl.position.x + cyl.radius < box.min.x ||
+        cyl.position.z - cyl.radius > box.max.z || cyl.position.z + cyl.radius < box.min.z ||
+        cyl.position.y > box.max.y || cyl.position.y + cyl.height < box.min.y) {
+        return false;
+    }
+
+    // 2. Find closest point on AABB to Cylinder Center (XZ plane only)
     float closestX = std::max(box.min.x, std::min(cyl.position.x, box.max.x));
-    float closestY = std::max(box.min.y, std::min(cyl.position.y + (cyl.height/2), box.max.y)); // Approx Y check
     float closestZ = std::max(box.min.z, std::min(cyl.position.z, box.max.z));
 
-    float distanceX = cyl.position.x - closestX;
-    float distanceZ = cyl.position.z - closestZ;
+    // 3. Distance from cylinder center to that point
+    float distX = cyl.position.x - closestX;
+    float distZ = cyl.position.z - closestZ;
+    float distSq = distX * distX + distZ * distZ;
 
-    bool overlapY = (cyl.position.y < box.max.y && cyl.position.y + cyl.height > box.min.y);
-    if (!overlapY) return false;
-
-    float distanceSquared = (distanceX * distanceX) + (distanceZ * distanceZ);
-    if (distanceSquared < (cyl.radius * cyl.radius)) {
-        // COLLISION DETECTED
-
-        // Calculate smooth push-back direction
-        float dist = sqrt(distanceSquared);
-        if (dist == 0.0f) {
-            // Center is exactly inside box (rare), push out +X arbitrarily
-            resolution = glm::vec3(1, 0, 0) * (cyl.radius - dist);
-        } else {
-            glm::vec3 normal = glm::vec3(distanceX, 0, distanceZ) / dist;
-            resolution = normal * (cyl.radius - dist);
-        }
-        return true;
+    // 4. Check if we are colliding in XZ
+    // Note: If distSq is 0, the center is inside the box. That counts as collision.
+    bool centerInsideXZ = (distSq < 0.00001f);
+    if (!centerInsideXZ && distSq > (cyl.radius * cyl.radius)) {
+        return false;
     }
-    return false;
+
+    // --- COLLISION CONFIRMED - RESOLVE IT ---
+
+    // 5. Calculate Y Penetration (Floor/Ceiling)
+    // We assume 'position' is the bottom of the cylinder
+    float distToTop = box.max.y - cyl.position.y;                   // Push Up (Floor)
+    float distToBottom = box.min.y - (cyl.position.y + cyl.height); // Push Down (Ceiling)
+
+    // Choose the smaller Y push
+    float penetrationY = (std::abs(distToTop) < std::abs(distToBottom)) ? distToTop : distToBottom;
+
+    // 6. Calculate XZ Penetration (Wall)
+    float penetrationXZ = 0.0f;
+    glm::vec3 normalXZ(0.0f);
+
+    if (centerInsideXZ) {
+        // We are deep inside the AABB. Find the nearest edge.
+        float dMinX = cyl.position.x - box.min.x;
+        float dMaxX = box.max.x - cyl.position.x;
+        float dMinZ = cyl.position.z - box.min.z;
+        float dMaxZ = box.max.z - cyl.position.z;
+
+        float minDim = std::min({dMinX, dMaxX, dMinZ, dMaxZ});
+
+        if (minDim == dMinX) normalXZ = glm::vec3(-1, 0, 0);
+        else if (minDim == dMaxX) normalXZ = glm::vec3(1, 0, 0);
+        else if (minDim == dMinZ) normalXZ = glm::vec3(0, 0, -1);
+        else normalXZ = glm::vec3(0, 0, 1);
+
+        penetrationXZ = minDim + cyl.radius;
+    } else {
+        // We are hitting the corner/edge
+        float dist = std::sqrt(distSq);
+        normalXZ = glm::vec3(distX, 0, distZ) / dist;
+        penetrationXZ = cyl.radius - dist;
+    }
+
+    // 7. Choose the "Path of Least Resistance"
+    // If Y penetration is smaller than XZ penetration, it's a floor/ceiling hit.
+    if (std::abs(penetrationY) < std::abs(penetrationXZ)) {
+        resolution = glm::vec3(0, penetrationY, 0);
+    } else {
+        resolution = normalXZ * penetrationXZ;
+    }
+
+    return true;
 }
 
 class PhysicsDebugDrawer {
