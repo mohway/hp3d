@@ -60,6 +60,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+FetchContent_Declare(
+        JoltPhysics
+        GIT_REPOSITORY "https://github.com/jrouwe/JoltPhysics"
+        GIT_TAG "v5.5.0"
+        SOURCE_SUBDIR "Build"
+)
+FetchContent_MakeAvailable(JoltPhysics)
+
 # Define ImGui sources manually since it doesn't have a CMakeLists.txt by default usually, 
 # or we want specific backends.
 set(IMGUI_DIR ${imgui_SOURCE_DIR})
@@ -72,6 +80,8 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
         src/engine/imgui/scene_hierarchy.cpp
+        src/engine/3p/jolt_impl.cpp
+        src/engine/3p/jolt_impl.hpp
 )
 
 # --- 2. Source Files ---
@@ -114,7 +124,7 @@ target_include_directories(hp3d PUBLIC ${OPENGL_INCLUDE_DIR})
 target_include_directories(hp3d PUBLIC ${stb_SOURCE_DIR} ${tinyobjloader_SOURCE_DIR})
 target_include_directories(hp3d PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
 
-target_link_libraries(hp3d PRIVATE glfw glad glm OpenGL::GL)
+target_link_libraries(hp3d PRIVATE glfw glad glm OpenGL::GL Jolt)
 
 # Copy shaders to build directory so the executable can find them
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

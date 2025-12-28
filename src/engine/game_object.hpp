@@ -52,6 +52,7 @@ struct GameObject {
     float collisionRadius = 0.0f;
     float collisionHeight = 0.0f;
     bool hasCollision = false;
+    bool collisionDirty = false;
 
     GameObject(ObjectType t = ObjectType::Base) : type(t) {
         localBounds.min = glm::vec3(-0.5f);
