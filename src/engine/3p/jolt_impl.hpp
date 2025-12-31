@@ -215,6 +215,8 @@ public:
 
     PhysicsSystem& GetPhysicsSystem() { return m_physics_system; }
     BodyInterface& GetBodyInterface() { return m_physics_system.GetBodyInterface(); }
+    void SetDebugDrawEnabled(bool enabled) { m_debug_draw_enabled = enabled; }
+    bool IsDebugDrawEnabled() const { return m_debug_draw_enabled; }
 
 private:
 	JoltBootstrap m_bootstrap;
@@ -232,5 +234,6 @@ private:
 	PhysicsSystem m_physics_system;
 
     JoltDebugRendererImpl* m_debug_renderer = nullptr;
+    bool m_debug_draw_enabled = true;
 
 };

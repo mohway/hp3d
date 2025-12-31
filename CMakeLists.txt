@@ -60,6 +60,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+set(CPP_RTTI_ENABLED ON CACHE BOOL "Enable RTTI for Jolt" FORCE)
+
 FetchContent_Declare(
         JoltPhysics
         GIT_REPOSITORY "https://github.com/jrouwe/JoltPhysics"

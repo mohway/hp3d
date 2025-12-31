@@ -127,11 +127,12 @@ private:
         float targetVelZ = moveDir.z * m_Speed;
         float targetVelY = currentVel.GetY();
 
-        // Jump
+        // Jump (edge-triggered)
         // Note: Ground check with physics is more complex (raycast or contact listener).
         // For now, simple check if Y velocity is near zero.
         bool isGrounded = std::abs(currentVel.GetY()) < 0.1f;
-        if (isGrounded && glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+        bool jumpDown = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+        if (isGrounded && jumpDown && !m_WasJumpDown) {
             targetVelY = m_JumpForce;
         }
 
@@ -141,6 +142,7 @@ private:
         }
 
         body_interface.SetLinearVelocity(bodyID, Vec3(targetVelX, targetVelY, targetVelZ));
+        m_WasJumpDown = jumpDown;
 
         // Rotate Player to face direction
         if (glm::length(moveDir) > 0.1f) {
@@ -213,4 +215,5 @@ private:
     float m_Gravity = -35.0f;
     float m_JumpForce = 16.0f;
     bool m_IsGrounded = false;
+    bool m_WasJumpDown = false;
 };

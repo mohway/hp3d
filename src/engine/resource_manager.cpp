@@ -363,9 +363,40 @@ Model ResourceManager::loadModelFromFile(const char* file) {
         }
     }
 
+    glm::vec3 modelMin(std::numeric_limits<float>::max());
+    glm::vec3 modelMax(std::numeric_limits<float>::lowest());
+    bool hasVertices = false;
+
     for (const auto& [materialId, vertices] : verticesByMaterial) {
+        for (size_t i = 0; i + 2 < vertices.size(); i += 8) {
+            glm::vec3 pos(vertices[i], vertices[i + 1], vertices[i + 2]);
+            modelMin.x = std::min(modelMin.x, pos.x);
+            modelMin.y = std::min(modelMin.y, pos.y);
+            modelMin.z = std::min(modelMin.z, pos.z);
+            modelMax.x = std::max(modelMax.x, pos.x);
+            modelMax.y = std::max(modelMax.y, pos.y);
+            modelMax.z = std::max(modelMax.z, pos.z);
+            hasVertices = true;
+        }
+    }
+
+    glm::vec3 pivot(0.0f);
+    if (hasVertices) {
+        // Center model pivot so physics/rendering align at the model center.
+        pivot = (modelMin + modelMax) * 0.5f;
+    }
+
+    for (auto& [materialId, vertices] : verticesByMaterial) {
         if (vertices.empty()) {
             continue;
+        }
+
+        if (hasVertices) {
+            for (size_t i = 0; i + 2 < vertices.size(); i += 8) {
+                vertices[i]     -= pivot.x;
+                vertices[i + 1] -= pivot.y;
+                vertices[i + 2] -= pivot.z;
+            }
         }
 
         glm::vec3 boundsMin(std::numeric_limits<float>::max());

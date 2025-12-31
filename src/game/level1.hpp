@@ -3,9 +3,11 @@
 #include "../engine/resource_manager.hpp"
 #include <iostream>
 #include <cmath> // For sin/cos
+#include <algorithm>
 
 #include "../engine/player_controller.hpp"
 #include "../engine/3p/jolt_impl.hpp"
+#include "Jolt/Physics/Collision/Shape/CapsuleShape.h"
 
 class Level1 : public Scene {
 public:
@@ -44,18 +46,10 @@ public:
         // Create Physics Body for Floor
         if (m_Physics) {
             BodyInterface &body_interface = m_Physics->GetBodyInterface();
-            BoxShapeSettings floor_shape_settings(Vec3(50.0f, 1.0f, 50.0f)); // Half extents
+            BoxShapeSettings floor_shape_settings(Vec3(50.0f, 0.5f, 50.0f)); // Half extents
             floor_shape_settings.SetEmbedded();
             ShapeSettings::ShapeResult floor_shape_result = floor_shape_settings.Create();
             ShapeRefC floor_shape = floor_shape_result.Get();
-
-            // Floor is at y=0, but the box is 2 units high (half extent 1).
-            // If we want the top surface at 0, center should be at -1.
-            // The visual mesh goes from -1 to 0 in Y.
-            // So center of visual mesh is at -0.5.
-            // Wait, visual mesh: y from -1 to 0.
-            // Physics box: center at (0, -0.5, 0), half extent (50, 0.5, 50).
-            // Let's adjust.
 
             BodyCreationSettings floor_settings(floor_shape, RVec3(0.0_r, -0.5_r, 0.0_r), Quat::sIdentity(), EMotionType::Static, Layers::NON_MOVING);
             Body *floor = body_interface.CreateBody(floor_settings);
@@ -67,6 +61,12 @@ public:
         // --- Harry Potter ---
         m_Harry = CreateObject<MeshObject>();
         m_Harry->modelResource = &ResourceManager::GetModel("harry");
+
+        auto [min, max, valid] = ComputeModelBounds(*m_Harry->modelResource);
+
+        m_Harry->localBounds.min = min;
+        m_Harry->localBounds.max = max;
+
         m_Harry->transform.Position = glm::vec3(0.0f, 100.0f, 0.0f);
         m_Harry->transform.Scale = glm::vec3(0.1f); // Adjust scale as needed
         m_Harry->transform.Rotation = glm::vec3(0.0f, 90.0f, 0.0f);
@@ -75,16 +75,35 @@ public:
         if (m_Physics) {
             BodyInterface &body_interface = m_Physics->GetBodyInterface();
 
-            // Cylinder dimensions: Height 1.8m, Radius 0.3m
-            // Jolt CylinderShape takes (HalfHeight, Radius)
-            // Note: Jolt cylinders are aligned along the Y axis by default.
-            float halfHeight = 0.9f;
-            float radius = 0.3f;
+            // Capsule total height should match the model height.
+            glm::vec3 size = m_Harry->localBounds.max - m_Harry->localBounds.min;
+            float scaleX = std::abs(m_Harry->transform.Scale.x);
+            float scaleY = std::abs(m_Harry->transform.Scale.y);
+            float scaleZ = std::abs(m_Harry->transform.Scale.z);
 
-            BodyCreationSettings cylinder_settings(new CylinderShape(halfHeight, radius), RVec3(0.0_r, 10.0_r, 0.0_r), Quat::sIdentity(), EMotionType::Dynamic, Layers::MOVING);
+            float height = size.y * scaleY;
+            float widthX = size.x * scaleX;
+            float widthZ = size.z * scaleZ;
+
+            // Shrink radius to better fit torso width (hands widen the AABB).
+            float torsoFactor = 0.6f; // Tune: lower = narrower, higher = wider.
+            float radius = 0.5f * std::min(widthX, widthZ) * torsoFactor;
+            float halfHeight = 0.5f * std::max(0.0f, height - 2.0f * radius);
+
+            BodyCreationSettings cylinder_settings(
+                new CapsuleShape(halfHeight, radius),
+                RVec3(0.0_r, 10.0_r, 0.0_r),
+                Quat::sIdentity(),
+                EMotionType::Dynamic,
+                Layers::MOVING
+                );
 
             // Lock rotation to prevent Harry from tipping over
-            cylinder_settings.mAllowedDOFs = EAllowedDOFs::TranslationX | EAllowedDOFs::TranslationY | EAllowedDOFs::TranslationZ | EAllowedDOFs::RotationY;
+            cylinder_settings.mAllowedDOFs =
+                EAllowedDOFs::TranslationX |
+                    EAllowedDOFs::TranslationY |
+                        EAllowedDOFs::TranslationZ |
+                            EAllowedDOFs::RotationY;
 
             BodyID harry_id = body_interface.CreateAndAddBody(cylinder_settings, EActivation::Activate);
             m_Harry->physicsBodyID = harry_id.GetIndexAndSequenceNumber();
@@ -141,7 +160,7 @@ public:
             m_Light->transform.Position.z = cos(time) * 15.0f;
         }
 
-        glm::vec3 targetPos = m_Harry->transform.Position + glm::vec3(0.0f, 7.5f, 0.0f);
+        glm::vec3 targetPos = m_Harry->transform.Position + glm::vec3(0.0f, 5.5f, 0.0f);
         float distance = 25.0f;
         m_Camera.Position = targetPos - (m_Camera.Front * distance);
     }

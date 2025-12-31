@@ -87,39 +87,6 @@ unsigned int EnsurePreviewShader() {
     return it->second.ID;
 }
 
-struct Bounds {
-    glm::vec3 min;
-    glm::vec3 max;
-    bool valid = false;
-};
-
-Bounds ComputeModelBounds(const Model& model) {
-    Bounds bounds;
-    for (const auto& submesh : model) {
-        if (!bounds.valid) {
-            bounds.min = submesh.boundsMin;
-            bounds.max = submesh.boundsMax;
-            bounds.valid = true;
-            continue;
-        }
-
-        bounds.min.x = std::min(bounds.min.x, submesh.boundsMin.x);
-        bounds.min.y = std::min(bounds.min.y, submesh.boundsMin.y);
-        bounds.min.z = std::min(bounds.min.z, submesh.boundsMin.z);
-        bounds.max.x = std::max(bounds.max.x, submesh.boundsMax.x);
-        bounds.max.y = std::max(bounds.max.y, submesh.boundsMax.y);
-        bounds.max.z = std::max(bounds.max.z, submesh.boundsMax.z);
-    }
-
-    if (!bounds.valid) {
-        bounds.min = glm::vec3(-0.5f);
-        bounds.max = glm::vec3(0.5f);
-        bounds.valid = true;
-    }
-
-    return bounds;
-}
-
 void RenderModelPreview(const Model& model, int renderSize, unsigned int shader, const glm::quat& rotation) {
     if (shader == 0) {
         return;

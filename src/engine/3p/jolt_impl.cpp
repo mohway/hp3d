@@ -130,6 +130,8 @@ void Jolt_Impl::Init() {
 	// Now we can create the actual physics system.
 	m_physics_system.Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, m_broad_phase_layer_interface, m_object_vs_broadphase_layer_filter, m_object_vs_object_layer_filter);
 
+    m_physics_system.SetGravity(Vec3(0.0f, -35.0f, 0.0f));
+
 	// A body activation listener gets notified when bodies activate and go to sleep
 	// Note that this is called from a job so whatever you do here needs to be thread safe.
 	// Registering one is entirely optional.
@@ -165,6 +167,9 @@ void Jolt_Impl::Step(float dt) {
 }
 
 void Jolt_Impl::DrawDebug() {
+    if (!m_debug_draw_enabled) {
+        return;
+    }
     if (m_debug_renderer) {
         JPH::BodyManager::DrawSettings settings;
         settings.mDrawShape = true;

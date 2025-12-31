@@ -16,7 +16,7 @@ App::App(const std::string &title, int width, int height)
     : m_IsRunning(false) {
 
     // Start in Fullscreen
-    m_Window = std::make_unique<Window>(title, width, height, true);
+    m_Window = std::make_unique<Window>(title, width, height, false);
 
     g = { 0.0f, 0.0f, 0.0f };
 
@@ -57,6 +57,7 @@ void App::run() {
     float lastFrame = 0.0f;
     bool show_asset_window = true; // Default to open for now
     bool show_scene_hierarchy = true; // Default to open for now
+    bool show_jolt_debug = true;
 
     while (!m_Window->ShouldClose() && m_IsRunning) {
         // --- Time Management ---
@@ -91,6 +92,10 @@ void App::run() {
                 if (ImGui::BeginMenu("View")) {
                     ImGui::MenuItem("Asset Browser", NULL, &show_asset_window);
                     ImGui::MenuItem("Scene Hierarchy", NULL, &show_scene_hierarchy);
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Jolt Debug Draw", NULL, &show_jolt_debug)) {
+                        m_Physics.SetDebugDrawEnabled(show_jolt_debug);
+                    }
                     ImGui::EndMenu();
                 }
                 ImGui::EndMainMenuBar();
